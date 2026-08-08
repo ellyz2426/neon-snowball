@@ -1,0 +1,59 @@
+<style>
+  .root {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30;
+    gap: 14;
+    background-color: rgba(0, 8, 25, 0.94);
+    border-radius: 16;
+    border-width: 2;
+    border-color: rgba(0, 255, 255, 0.3);
+    width: 320;
+  }
+  .title {
+    font-size: 28;
+    color: #ffffff;
+    margin-bottom: 8;
+  }
+  .btn {
+    padding: 12;
+    background-color: rgba(0, 255, 255, 0.12);
+    border-radius: 8;
+    border-width: 1;
+    border-color: rgba(0, 255, 255, 0.4);
+    width: 240;
+    align-items: center;
+    cursor: pointer;
+  }
+  .btn-text {
+    font-size: 17;
+    color: #00ffff;
+  }
+  .btn-danger {
+    padding: 12;
+    background-color: rgba(255, 68, 68, 0.1);
+    border-radius: 8;
+    border-width: 1;
+    border-color: rgba(255, 68, 68, 0.3);
+    width: 240;
+    align-items: center;
+    cursor: pointer;
+  }
+  .btn-danger-text {
+    font-size: 17;
+    color: #ff6666;
+  }
+</style>
+<Panel class="root">
+  <div class="title">PAUSED</div>
+  <div class="btn" id="btn-resume">
+    <div class="btn-text">RESUME</div>
+  </div>
+  <div class="btn" id="btn-restart">
+    <div class="btn-text">RESTART</div>
+  </div>
+  <div class="btn-danger" id="btn-quit">
+    <div class="btn-danger-text">QUIT TO MENU</div>
+  </div>
+</Panel>
