@@ -37,12 +37,15 @@ import {
 	WARM_YELLOW,
 	SNOW_WHITE,
 	ICE_BLUE,
+	WeatherType,
 	isBossWave,
 } from './game-state.js';
 
 export class ArenaSystem extends createSystem({}) {
 	private snowParticles: { mesh: Mesh; vel: Vector3; baseY: number }[] = [];
 	private auroraLights: PointLight[] = [];
+	private ambientLight: AmbientLight | null = null;
+	private moonLight: DirectionalLight | null = null;
 	private time = 0;
 
 	init(): void {
@@ -90,6 +93,11 @@ export class ArenaSystem extends createSystem({}) {
 		scene.add(icicleGroup);
 		systemRefs.icicleGroup = icicleGroup;
 
+		const icePatchGroup = new Group();
+		icePatchGroup.name = 'ice-patches';
+		scene.add(icePatchGroup);
+		systemRefs.icePatchGroup = icePatchGroup;
+
 		// Lighting
 		this.setupLighting(scene);
 
@@ -122,11 +130,13 @@ export class ArenaSystem extends createSystem({}) {
 		// Ambient
 		const ambient = new AmbientLight(0x334466, 0.4);
 		scene.add(ambient);
+		this.ambientLight = ambient;
 
 		// Main directional (moonlight)
 		const moon = new DirectionalLight(0x8899cc, 0.6);
 		moon.position.set(5, 15, -5);
 		scene.add(moon);
+		this.moonLight = moon;
 
 		// Fill from below (snow reflection)
 		const fill = new DirectionalLight(0x445577, 0.2);
@@ -471,14 +481,42 @@ export class ArenaSystem extends createSystem({}) {
 	update(delta: number): void {
 		this.time += delta;
 
+		const weather = gameState.weather;
+
 		// Check if boss wave for snowstorm effect
 		const isStorm =
 			gameState.wave > 0 &&
 			isBossWave(gameState.wave) &&
 			gameState.state === GameState.PLAYING;
-		const windMult = isStorm ? 3.0 : 1.0;
-		const fallMult = isStorm ? 2.0 : 1.0;
-		const swayAmt = isStorm ? 0.04 : 0.01;
+
+		// Weather multipliers
+		let windMult: number, fallMult: number, swayAmt: number;
+		let targetFog: number;
+
+		if (isStorm) {
+			windMult = 3.0;
+			fallMult = 2.0;
+			swayAmt = 0.04;
+			targetFog = 0.04;
+		} else {
+			switch (weather) {
+				case WeatherType.BLIZZARD:
+					windMult = 2.5; fallMult = 1.8; swayAmt = 0.035; targetFog = 0.035;
+					break;
+				case WeatherType.HEAVY_SNOW:
+					windMult = 1.8; fallMult = 1.4; swayAmt = 0.02; targetFog = 0.028;
+					break;
+				case WeatherType.LIGHT_SNOW:
+					windMult = 1.2; fallMult = 1.1; swayAmt = 0.012; targetFog = 0.022;
+					break;
+				default:
+					windMult = 1.0; fallMult = 1.0; swayAmt = 0.01; targetFog = 0.02;
+					break;
+			}
+		}
+
+		// Weather-based lighting transitions
+		this.updateWeatherLighting(weather, isStorm, delta);
 
 		// Animate falling snow
 		for (const sp of this.snowParticles) {
@@ -486,7 +524,7 @@ export class ArenaSystem extends createSystem({}) {
 			sp.mesh.position.y += sp.vel.y * delta * fallMult;
 			sp.mesh.position.z += sp.vel.z * delta * windMult;
 
-			// Horizontal sway (stronger in storm)
+			// Horizontal sway (stronger in storm/blizzard)
 			sp.mesh.position.x += Math.sin(this.time * 0.5 + sp.baseY) * swayAmt;
 
 			// Reset at bottom
@@ -495,21 +533,58 @@ export class ArenaSystem extends createSystem({}) {
 				sp.mesh.position.x = (Math.random() - 0.5) * 40;
 				sp.mesh.position.z = (Math.random() - 0.5) * 40;
 			}
+
+			// Snow opacity varies with weather
+			const snowOpacity = weather === WeatherType.BLIZZARD || isStorm ? 0.9
+				: weather === WeatherType.HEAVY_SNOW ? 0.8
+				: 0.7;
+			(sp.mesh.material as MeshBasicMaterial).opacity = snowOpacity;
 		}
 
-		// Adjust fog density for storm
+		// Adjust fog density for weather
 		if (this.world.scene.fog) {
-			const targetDensity = isStorm ? 0.04 : 0.02;
 			const fog = this.world.scene.fog as FogExp2;
-			fog.density += (targetDensity - fog.density) * delta * 2;
+			fog.density += (targetFog - fog.density) * delta * 2;
 		}
 
 		// Animate aurora lights
 		for (let i = 0; i < this.auroraLights.length; i++) {
 			const light = this.auroraLights[i];
 			const phase = this.time * 0.3 + i * 1.5;
-			light.intensity = 0.15 + Math.sin(phase) * 0.15;
+			// Dimmer aurora in heavy weather
+			const auroraMax = weather === WeatherType.BLIZZARD || isStorm ? 0.08
+				: weather === WeatherType.HEAVY_SNOW ? 0.12
+				: 0.15;
+			light.intensity = auroraMax + Math.sin(phase) * auroraMax;
 			light.position.y = 12 + Math.sin(phase * 0.7) * 3;
 		}
+	}
+
+	private updateWeatherLighting(weather: WeatherType, isStorm: boolean, delta: number): void {
+		if (!this.ambientLight || !this.moonLight) return;
+
+		let targetAmbient: number, targetMoon: number;
+		if (isStorm) {
+			targetAmbient = 0.25;
+			targetMoon = 0.3;
+		} else {
+			switch (weather) {
+				case WeatherType.BLIZZARD:
+					targetAmbient = 0.28; targetMoon = 0.35;
+					break;
+				case WeatherType.HEAVY_SNOW:
+					targetAmbient = 0.32; targetMoon = 0.45;
+					break;
+				case WeatherType.LIGHT_SNOW:
+					targetAmbient = 0.38; targetMoon = 0.55;
+					break;
+				default:
+					targetAmbient = 0.4; targetMoon = 0.6;
+					break;
+			}
+		}
+
+		this.ambientLight.intensity += (targetAmbient - this.ambientLight.intensity) * delta * 1.5;
+		this.moonLight.intensity += (targetMoon - this.moonLight.intensity) * delta * 1.5;
 	}
 }

@@ -34,6 +34,7 @@ export enum EnemyType {
 	SPEEDY = 'SPEEDY',
 	TANK = 'TANK',
 	BOMBER = 'BOMBER',
+	YETI = 'YETI',
 	BOSS = 'BOSS',
 }
 
@@ -45,6 +46,14 @@ export enum PowerUpType {
 	FREEZE = 'FREEZE',
 }
 
+// ── Weather types ───────────────────────────────────────────────
+export enum WeatherType {
+	CLEAR = 'CLEAR',
+	LIGHT_SNOW = 'LIGHT_SNOW',
+	HEAVY_SNOW = 'HEAVY_SNOW',
+	BLIZZARD = 'BLIZZARD',
+}
+
 // ── Snowball data ───────────────────────────────────────────────
 export interface SnowballData {
 	mesh: Mesh;
@@ -53,6 +62,7 @@ export interface SnowballData {
 	lifetime: number;
 	isPlayerOwned: boolean;
 	isGiant: boolean;
+	element: 'normal' | 'ice' | 'fire';
 }
 
 // ── Enemy data ──────────────────────────────────────────────────
@@ -117,6 +127,13 @@ export interface IcicleData {
 	velocity: Vector3;
 	lifetime: number;
 	damage: number;
+}
+
+// ── Ice patch data ──────────────────────────────────────────────
+export interface IcePatchData {
+	mesh: Mesh;
+	lifetime: number;
+	radius: number;
 }
 
 // ── Health bar data ─────────────────────────────────────────────
@@ -212,6 +229,16 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyTypeConfig> = {
 		bodyColor: 0xffe0e0,
 		hatColor: 0xff3333,
 	},
+	[EnemyType.YETI]: {
+		health: 6,
+		speed: 0.6,
+		throwCooldown: 4.5,
+		damage: 20,
+		points: 500,
+		scale: 1.8,
+		bodyColor: 0xd8e8f0,
+		hatColor: 0x556677,
+	},
 	[EnemyType.BOSS]: {
 		health: 10,
 		speed: 0.5,
@@ -267,6 +294,9 @@ export const gameState = {
 	playStartTime: 0,
 	chargeLevel: 0,
 	isCharging: false,
+	weather: WeatherType.CLEAR as WeatherType,
+	weatherTransition: 0,
+	slowedEnemies: new Map<number, number>() as Map<number, number>,
 };
 
 // ── Shared object pools ─────────────────────────────────────────
@@ -278,6 +308,7 @@ export const particles: ParticleData[] = [];
 export const damageZones: DamageZoneData[] = [];
 export const floatingTexts: FloatingTextData[] = [];
 export const icicles: IcicleData[] = [];
+export const icePatches: IcePatchData[] = [];
 
 // ── System references ───────────────────────────────────────────
 export const systemRefs: {
@@ -290,6 +321,7 @@ export const systemRefs: {
 	damageZoneGroup: Group | null;
 	floatingTextGroup: Group | null;
 	icicleGroup: Group | null;
+	icePatchGroup: Group | null;
 } = {
 	scene: null,
 	arenaGroup: null,
@@ -300,6 +332,7 @@ export const systemRefs: {
 	damageZoneGroup: null,
 	floatingTextGroup: null,
 	icicleGroup: null,
+	icePatchGroup: null,
 };
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -326,6 +359,9 @@ export function resetGameState(): void {
 	gameState.playStartTime = Date.now();
 	gameState.chargeLevel = 0;
 	gameState.isCharging = false;
+	gameState.weather = WeatherType.CLEAR;
+	gameState.weatherTransition = 0;
+	gameState.slowedEnemies.clear();
 }
 
 export function getWaveEnemyCount(wave: number): number {

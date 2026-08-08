@@ -33,6 +33,13 @@ export class AudioSystem extends createSystem({}) {
 		window.addEventListener('wave-complete', () => this.playWaveComplete());
 		window.addEventListener('game-over', () => this.playGameOver());
 		window.addEventListener('icicle-drop', () => this.playIcicleDrop());
+		window.addEventListener('ice-hit', () => this.playIceHit());
+		window.addEventListener('fire-aoe', () => this.playFireAoE());
+		window.addEventListener('yeti-boulder', () => this.playYetiBoulder());
+		window.addEventListener('ice-patch-create', () => this.playIcePatchCreate());
+		window.addEventListener('weather-change', (e: Event) => {
+			this.playWeatherChange((e as CustomEvent).detail?.weather);
+		});
 
 		// Init audio on first interaction
 		const initAudio = () => {
@@ -201,6 +208,41 @@ export class AudioSystem extends createSystem({}) {
 		this.playNote(2400, 0.08, 'sine', 0.06);
 		setTimeout(() => this.playNote(1800, 0.1, 'sine', 0.05), 50);
 		setTimeout(() => this.playNote(3200, 0.06, 'sine', 0.04), 100);
+	}
+
+	private playIceHit(): void {
+		// Crystalline freeze sound
+		this.playNote(1600, 0.15, 'sine', 0.1);
+		this.playNote(2200, 0.1, 'sine', 0.08);
+		this.playNoise(0.15, 3000, 0.05);
+	}
+
+	private playFireAoE(): void {
+		// Explosive fire whoosh
+		this.playNoise(0.4, 400, 0.18);
+		this.playNote(150, 0.3, 'sawtooth', 0.1);
+		setTimeout(() => this.playNote(100, 0.2, 'sine', 0.08), 100);
+	}
+
+	private playYetiBoulder(): void {
+		// Deep rumbling throw
+		this.playNote(80, 0.4, 'sawtooth', 0.12);
+		this.playNoise(0.3, 200, 0.1);
+		setTimeout(() => this.playNote(60, 0.3, 'sine', 0.08), 150);
+	}
+
+	private playIcePatchCreate(): void {
+		// Ice cracking/spreading
+		this.playNoise(0.2, 4000, 0.06);
+		this.playNote(1400, 0.12, 'sine', 0.05);
+		setTimeout(() => this.playNote(2000, 0.08, 'sine', 0.04), 80);
+	}
+
+	private playWeatherChange(_weather: string): void {
+		// Atmospheric woosh transition
+		this.playNoise(0.8, 250, 0.08);
+		this.playNote(200, 0.5, 'sine', 0.06);
+		setTimeout(() => this.playNote(300, 0.4, 'sine', 0.05), 200);
 	}
 
 	update(): void {

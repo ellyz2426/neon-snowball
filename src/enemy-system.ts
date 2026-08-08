@@ -32,6 +32,7 @@ import {
 	NEON_BLUE,
 	ARENA_RADIUS,
 	HealthBarData,
+	icePatches,
 } from './game-state.js';
 import { SnowballSystem } from './snowball-system.js';
 
@@ -49,6 +50,16 @@ export class EnemySystem extends createSystem({}) {
 
 		const diffConfig = DIFFICULTY_CONFIGS[gameState.difficulty];
 		const isFrozen = gameState.freezeActive;
+
+		// Update slow timers
+		for (const [id, remaining] of gameState.slowedEnemies.entries()) {
+			const newRemaining = remaining - delta;
+			if (newRemaining <= 0) {
+				gameState.slowedEnemies.delete(id);
+			} else {
+				gameState.slowedEnemies.set(id, newRemaining);
+			}
+		}
 
 		for (let i = enemies.length - 1; i >= 0; i--) {
 			const enemy = enemies[i];
@@ -86,7 +97,29 @@ export class EnemySystem extends createSystem({}) {
 			}
 
 			// Movement (unless frozen)
-			const speedMult = isFrozen ? 0.15 : diffConfig.enemySpeedMult;
+			let speedMult = isFrozen ? 0.15 : diffConfig.enemySpeedMult;
+
+			// Apply ice-ball slow debuff
+			const enemyIdx = enemies.indexOf(enemy);
+			if (gameState.slowedEnemies.has(enemyIdx)) {
+				speedMult *= 0.35;
+				// Tint the enemy blue when slowed
+				this.setEnemyEmissive(enemy.group, enemy.hitFlashTimer > 0 ? 0xff4444 : 0x4488ff);
+			}
+
+			// Check if on ice patch (enemies speed up on ice)
+			let onIce = false;
+			for (const patch of icePatches) {
+				const dx = enemy.group.position.x - patch.mesh.position.x;
+				const dz = enemy.group.position.z - patch.mesh.position.z;
+				if (Math.sqrt(dx * dx + dz * dz) < patch.radius) {
+					onIce = true;
+					break;
+				}
+			}
+			if (onIce && !gameState.slowedEnemies.has(enemyIdx)) {
+				speedMult *= 1.5; // Enemies slide faster on ice
+			}
 
 			if (enemy.type === EnemyType.BOSS && enemy.isCharging) {
 				// Boss charge: rush toward player at high speed
@@ -165,6 +198,26 @@ export class EnemySystem extends createSystem({}) {
 					if (enemy.type === EnemyType.BOSS && enemy.throwCount % 3 === 0) {
 						// Boss ground pound: radial snowball burst + screen shake
 						this.bossGroundPound(enemy);
+					} else if (enemy.type === EnemyType.YETI && enemy.throwCount % 2 === 0) {
+						// Yeti boulder: create ice patch where it lands
+						const headY = 2.0 * ENEMY_CONFIGS[enemy.type].scale;
+						_throwOrigin.copy(enemy.group.position);
+						_throwOrigin.y = headY;
+						const config = ENEMY_CONFIGS[enemy.type];
+						SnowballSystem.createEnemySnowball(
+							_throwOrigin,
+							_playerPos,
+							config.damage,
+							enemy.type,
+						);
+						// Dispatch ice patch event at predicted landing spot
+						window.dispatchEvent(new CustomEvent('yeti-boulder', {
+							detail: {
+								x: _playerPos.x + (Math.random() - 0.5) * 3,
+								z: _playerPos.z + (Math.random() - 0.5) * 3,
+							},
+						}));
+						window.dispatchEvent(new CustomEvent('enemy-throw'));
 					} else {
 						// Normal throw
 						const headY = enemy.type === EnemyType.BOSS ? 3.5 : 1.5;
@@ -322,9 +375,11 @@ export class EnemySystem extends createSystem({}) {
 				? NEON_PURPLE
 				: type === EnemyType.BOMBER
 					? NEON_PINK
-					: type === EnemyType.SPEEDY
-						? NEON_BLUE
-						: NEON_CYAN;
+					: type === EnemyType.YETI
+						? 0x88ddff
+						: type === EnemyType.SPEEDY
+							? NEON_BLUE
+							: NEON_CYAN;
 		const eyeLight = new PointLight(glowColor, 0.4, 2);
 		eyeLight.position.set(0, 1.5 * s, 0.25 * s);
 		group.add(eyeLight);
@@ -380,6 +435,52 @@ export class EnemySystem extends createSystem({}) {
 			const btn = new Mesh(btnGeo, btnMat.clone());
 			btn.position.set(0, (0.7 + b * 0.15) * s, 0.35 * s);
 			group.add(btn);
+		}
+
+		// Yeti: add fur tufts and icy horns instead of buttons + different arms
+		if (type === EnemyType.YETI) {
+			// Fur tufts (small spiky spheres around body)
+			const furMat = new MeshStandardMaterial({
+				color: 0xc0d8e8,
+				roughness: 1.0,
+				emissive: new Color(0x223344),
+				emissiveIntensity: 0.2,
+			});
+			for (let f = 0; f < 8; f++) {
+				const furGeo = new SphereGeometry(0.06 * s, 5, 4);
+				const fur = new Mesh(furGeo, furMat.clone());
+				const fAngle = (f / 8) * Math.PI * 2;
+				const fY = 0.5 + Math.random() * 0.8;
+				fur.position.set(
+					Math.cos(fAngle) * 0.4 * s,
+					fY * s,
+					Math.sin(fAngle) * 0.4 * s,
+				);
+				group.add(fur);
+			}
+
+			// Icy horns on head
+			const hornMat = new MeshStandardMaterial({
+				color: 0x88ccff,
+				roughness: 0.1,
+				metalness: 0.5,
+				emissive: new Color(0x4488ff),
+				emissiveIntensity: 0.4,
+				transparent: true,
+				opacity: 0.8,
+			});
+			for (const side of [-1, 1]) {
+				const hornGeo = new ConeGeometry(0.04 * s, 0.25 * s, 5);
+				const horn = new Mesh(hornGeo, hornMat.clone());
+				horn.position.set(side * 0.15 * s, 1.7 * s, 0);
+				horn.rotation.z = side * -0.4;
+				group.add(horn);
+			}
+
+			// Icy glow
+			const iceGlow = new PointLight(0x88ccff, 0.3, 4);
+			iceGlow.position.set(0, 1.0 * s, 0);
+			group.add(iceGlow);
 		}
 
 		// Boss: add crown

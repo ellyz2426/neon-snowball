@@ -77,6 +77,14 @@
     padding: 4;
     border-radius: 4;
   }
+  .weather {
+    font-size: 12;
+    color: rgba(136, 204, 255, 0.8);
+    align-self: center;
+    background-color: rgba(136, 204, 255, 0.08);
+    padding: 3;
+    border-radius: 4;
+  }
   .charge-section {
     flex-direction: column;
     gap: 2;
@@ -132,4 +140,5 @@
   </div>
   <div class="wave-announce" id="wave-announce"></div>
   <div class="powerup" id="powerup"></div>
+  <div class="weather" id="weather">☀️ CLEAR</div>
 </Panel>

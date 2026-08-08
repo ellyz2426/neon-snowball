@@ -79,7 +79,7 @@
   </div>
   <div class="item-row">
     <div class="icon">⚡</div>
-    <div class="item-text">Hold to charge for bigger, faster throws</div>
+    <div class="item-text">Hold to charge — 50% = ICE, 80% = FIRE</div>
   </div>
   <div class="item-row">
     <div class="icon">❄</div>
@@ -116,8 +116,22 @@
     <div class="item-text">Bomber — explosive snowballs!</div>
   </div>
   <div class="item-row">
+    <div class="icon">🏔</div>
+    <div class="item-text">Yeti — big, throws boulders that create ice</div>
+  </div>
+  <div class="item-row">
     <div class="icon">👑</div>
     <div class="item-text">Boss — every 5th wave</div>
+  </div>
+  <div class="divider"></div>
+  <div class="section-title">WEATHER + HAZARDS</div>
+  <div class="item-row">
+    <div class="icon">🌤</div>
+    <div class="item-text">Weather changes every 3 waves</div>
+  </div>
+  <div class="item-row">
+    <div class="icon">🧊</div>
+    <div class="item-text">Ice patches speed up enemies</div>
   </div>
   <div class="divider"></div>
   <div class="section-title">POWER-UPS</div>

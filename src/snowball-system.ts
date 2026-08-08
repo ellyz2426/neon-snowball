@@ -155,13 +155,13 @@ export class SnowballSystem extends createSystem({}) {
 		mat.emissiveIntensity = glowIntensity;
 		mat.opacity = 0.6 + chargeRatio * 0.3;
 
-		// Color shifts from cyan to pink as charge increases
+		// Color shifts: cyan → blue (ice) → orange (fire) as charge increases
 		if (chargeRatio > 0.8) {
-			mat.emissive.setHex(NEON_PINK);
+			mat.emissive.setHex(0xff4400); // Fire
 		} else if (chargeRatio > 0.5) {
-			mat.emissive.setHex(0x88aaff);
+			mat.emissive.setHex(0x4488ff); // Ice
 		} else {
-			mat.emissive.setHex(NEON_CYAN);
+			mat.emissive.setHex(NEON_CYAN); // Normal
 		}
 	}
 
@@ -175,14 +175,35 @@ export class SnowballSystem extends createSystem({}) {
 
 		const isGiant = gameState.giantSnowballActive;
 		const isCharged = chargeRatio > 0.3;
+
+		// Determine element based on charge level
+		let element: 'normal' | 'ice' | 'fire' = 'normal';
+		if (chargeRatio > 0.8) {
+			element = 'fire';
+		} else if (chargeRatio > 0.5) {
+			element = 'ice';
+		}
+
 		const geo = isGiant ? giantSnowballGeo : (isCharged ? new SphereGeometry(0.12 + chargeRatio * 0.1, 12, 8) : snowballGeo);
 
-		const chargeColor = chargeRatio > 0.8 ? NEON_PINK : chargeRatio > 0.5 ? 0x88aaff : NEON_CYAN;
+		// Color based on element
+		let emissiveColor: number;
+		let baseColor: number = 0xffffff;
+		if (element === 'fire') {
+			emissiveColor = 0xff4400;
+			baseColor = 0xffccaa;
+		} else if (element === 'ice') {
+			emissiveColor = 0x4488ff;
+			baseColor = 0xccddff;
+		} else {
+			emissiveColor = isGiant ? NEON_PINK : NEON_CYAN;
+		}
+
 		const mat = new MeshStandardMaterial({
-			color: 0xffffff,
+			color: baseColor,
 			roughness: 0.4,
 			metalness: 0.1,
-			emissive: new Color(isGiant ? NEON_PINK : chargeColor),
+			emissive: new Color(emissiveColor),
 			emissiveIntensity: 0.4 + chargeRatio * 0.4,
 		});
 
@@ -205,12 +226,13 @@ export class SnowballSystem extends createSystem({}) {
 			lifetime: SNOWBALL_LIFETIME,
 			isPlayerOwned: true,
 			isGiant,
+			element,
 		});
 
 		gameState.totalThrows++;
 
 		// Fire event for audio
-		window.dispatchEvent(new CustomEvent('snowball-throw', { detail: { isGiant, charged: isCharged } }));
+		window.dispatchEvent(new CustomEvent('snowball-throw', { detail: { isGiant, charged: isCharged, element } }));
 	}
 
 	/** Called by EnemySystem to create enemy snowballs */
@@ -251,6 +273,7 @@ export class SnowballSystem extends createSystem({}) {
 			lifetime: SNOWBALL_LIFETIME,
 			isPlayerOwned: false,
 			isGiant: isBomber,
+			element: 'normal',
 		});
 	}
 
@@ -316,6 +339,29 @@ export class SnowballSystem extends createSystem({}) {
 						enemy.health -= sb.damage;
 						enemy.hitFlashTimer = 0.15;
 						gameState.totalHits++;
+
+						// Elemental effects
+						if (sb.element === 'ice') {
+							// Ice ball: slow enemy for 3 seconds
+							const id = enemies.indexOf(enemy);
+							gameState.slowedEnemies.set(id, 3.0);
+							window.dispatchEvent(new CustomEvent('ice-hit', {
+								detail: { x: enemy.group.position.x, y: enemy.group.position.y + 0.5, z: enemy.group.position.z },
+							}));
+						} else if (sb.element === 'fire') {
+							// Fire ball: AoE damage to nearby enemies
+							for (let k = enemies.length - 1; k >= 0; k--) {
+								if (k === j || enemies[k].isDying) continue;
+								const aoeDist = sb.mesh.position.distanceTo(enemies[k].group.position);
+								if (aoeDist < 3.0) {
+									enemies[k].health -= 2;
+									enemies[k].hitFlashTimer = 0.2;
+								}
+							}
+							window.dispatchEvent(new CustomEvent('fire-aoe', {
+								detail: { x: sb.mesh.position.x, y: sb.mesh.position.y, z: sb.mesh.position.z },
+							}));
+						}
 
 						if (sb.isGiant) {
 							// Giant snowball area damage

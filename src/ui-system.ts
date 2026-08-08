@@ -12,6 +12,7 @@ import {
 	Difficulty,
 	activePowerUps,
 	PowerUpType,
+	WeatherType,
 } from './game-state.js';
 import { GameSystem } from './game-system.js';
 
@@ -351,15 +352,29 @@ export class UISystem extends createSystem({}) {
 			if (gameState.isCharging) {
 				const barWidth = Math.floor(gameState.chargeLevel * 200);
 				const barColor = gameState.chargeLevel > 0.8
-					? 'rgba(255,68,170,0.9)'
+					? 'rgba(255,68,0,0.9)'
 					: gameState.chargeLevel > 0.5
-						? 'rgba(136,170,255,0.9)'
+						? 'rgba(68,136,255,0.9)'
 						: 'rgba(0,255,255,0.8)';
 				chargeSectionEl.setProperties({ display: 'flex' });
 				chargeBarEl.setProperties({ width: barWidth, backgroundColor: barColor });
 			} else {
 				chargeSectionEl.setProperties({ display: 'none' });
 			}
+		}
+
+		// Weather indicator
+		const weatherEl = this.hudPanel.getElementById('weather');
+		if (weatherEl) {
+			const weatherLabels: Record<WeatherType, string> = {
+				[WeatherType.CLEAR]: '☀️ CLEAR',
+				[WeatherType.LIGHT_SNOW]: '🌨️ LIGHT SNOW',
+				[WeatherType.HEAVY_SNOW]: '❄️ HEAVY SNOW',
+				[WeatherType.BLIZZARD]: '🌪️ BLIZZARD',
+			};
+			weatherEl.setProperties({
+				text: weatherLabels[gameState.weather] || '☀️ CLEAR',
+			});
 		}
 	}
 

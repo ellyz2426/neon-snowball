@@ -22,11 +22,13 @@ import {
 	damageZones,
 	floatingTexts,
 	icicles,
+	icePatches,
 	systemRefs,
 	EnemyType,
 	PowerUpType,
 	PowerUpData,
 	ActivePowerUp,
+	WeatherType,
 	getWaveEnemyCount,
 	isBossWave,
 	resetGameState,
@@ -134,6 +136,9 @@ export class GameSystem extends createSystem({}) {
 		gameState.waveEnemiesTotal = count;
 		gameState.enemiesRemaining = count;
 
+		// Weather transitions every 3 waves
+		this.updateWeather();
+
 		// Build spawn queue
 		this.spawnQueue = [];
 
@@ -162,10 +167,31 @@ export class GameSystem extends createSystem({}) {
 		const wave = gameState.wave;
 		const roll = Math.random();
 
-		if (wave >= 8 && roll < 0.15) return EnemyType.BOMBER;
-		if (wave >= 5 && roll < 0.3) return EnemyType.TANK;
+		if (wave >= 6 && roll < 0.1) return EnemyType.YETI;
+		if (wave >= 8 && roll < 0.2) return EnemyType.BOMBER;
+		if (wave >= 5 && roll < 0.35) return EnemyType.TANK;
 		if (wave >= 3 && roll < 0.5) return EnemyType.SPEEDY;
 		return EnemyType.BASIC;
+	}
+
+	private updateWeather(): void {
+		const wave = gameState.wave;
+		const weatherCycle: WeatherType[] = [
+			WeatherType.CLEAR,
+			WeatherType.LIGHT_SNOW,
+			WeatherType.HEAVY_SNOW,
+			WeatherType.BLIZZARD,
+		];
+		// Cycle through weather every 3 waves
+		const weatherIdx = Math.floor((wave - 1) / 3) % weatherCycle.length;
+		const newWeather = weatherCycle[weatherIdx];
+
+		if (newWeather !== gameState.weather) {
+			gameState.weather = newWeather;
+			window.dispatchEvent(new CustomEvent('weather-change', {
+				detail: { weather: newWeather },
+			}));
+		}
 	}
 
 	private spawnPowerUp(): void {
@@ -361,6 +387,14 @@ export class GameSystem extends createSystem({}) {
 			(ic.mesh.material as MeshStandardMaterial).dispose();
 		}
 		icicles.length = 0;
+
+		// Remove all ice patches
+		for (const patch of icePatches) {
+			systemRefs.icePatchGroup?.remove(patch.mesh);
+			patch.mesh.geometry.dispose();
+			(patch.mesh.material as MeshBasicMaterial).dispose();
+		}
+		icePatches.length = 0;
 	}
 
 	saveHighScore(): void {

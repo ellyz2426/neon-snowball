@@ -23,6 +23,7 @@ import {
 	damageZones,
 	floatingTexts,
 	icicles,
+	icePatches,
 	enemies,
 	systemRefs,
 	particleGeo,
@@ -30,6 +31,7 @@ import {
 	DamageZoneData,
 	FloatingTextData,
 	IcicleData,
+	IcePatchData,
 	NEON_CYAN,
 	NEON_PINK,
 	NEON_GREEN,
@@ -126,6 +128,28 @@ export class EffectsSystem extends createSystem({}) {
 			this.spawnBurst(d.x, 0.2, d.z, 30, NEON_PURPLE, 0.8);
 		});
 
+		// Ice ball hit — blue particle burst
+		window.addEventListener('ice-hit', (e: Event) => {
+			const d = (e as CustomEvent).detail;
+			this.spawnBurst(d.x, d.y, d.z, 12, 0x4488ff, 0.5);
+		});
+
+		// Fire ball AoE — orange/red burst
+		window.addEventListener('fire-aoe', (e: Event) => {
+			const d = (e as CustomEvent).detail;
+			this.spawnBurst(d.x, d.y, d.z, 25, 0xff4400, 0.7);
+			this.spawnBurst(d.x, d.y + 0.3, d.z, 10, 0xffaa00, 0.4);
+		});
+
+		// Yeti boulder creates ice patch
+		window.addEventListener('yeti-boulder', (e: Event) => {
+			const d = (e as CustomEvent).detail;
+			// Delayed ice patch creation (boulder needs to land)
+			setTimeout(() => {
+				this.createIcePatch(d.x, d.z);
+			}, 800);
+		});
+
 		// Create shield indicator mesh
 		const shieldGeo = new SphereGeometry(1.0, 16, 12);
 		const shieldMat = new MeshBasicMaterial({
@@ -180,6 +204,9 @@ export class EffectsSystem extends createSystem({}) {
 
 		// Icicle hazards
 		this.updateIcicles(delta);
+
+		// Ice patches
+		this.updateIcePatches(delta);
 
 		// Screen shake
 		if (this.shakeIntensity > 0 && systemRefs.arenaGroup) {
@@ -542,6 +569,54 @@ export class EffectsSystem extends createSystem({}) {
 
 		// Spawn audio event
 		window.dispatchEvent(new CustomEvent('icicle-drop'));
+	}
+
+	private createIcePatch(x: number, z: number): void {
+		if (!systemRefs.icePatchGroup) return;
+		if (icePatches.length >= 6) {
+			// Remove oldest patch
+			const old = icePatches.shift()!;
+			systemRefs.icePatchGroup.remove(old.mesh);
+			old.mesh.geometry.dispose();
+			(old.mesh.material as MeshBasicMaterial).dispose();
+		}
+
+		const radius = 1.5 + Math.random() * 0.5;
+		const geo = new CircleGeometry(radius, 24);
+		const mat = new MeshBasicMaterial({
+			color: 0x88ccff,
+			transparent: true,
+			opacity: 0.35,
+			side: DoubleSide,
+		});
+		const mesh = new Mesh(geo, mat);
+		mesh.rotation.x = -Math.PI / 2;
+		mesh.position.set(x, 0.015, z);
+		systemRefs.icePatchGroup.add(mesh);
+
+		icePatches.push({ mesh, lifetime: 20, radius });
+
+		// Sparkle effect
+		this.spawnBurst(x, 0.1, z, 8, 0x88ccff, 0.3);
+		window.dispatchEvent(new CustomEvent('ice-patch-create'));
+	}
+
+	private updateIcePatches(delta: number): void {
+		for (let i = icePatches.length - 1; i >= 0; i--) {
+			const patch = icePatches[i];
+			patch.lifetime -= delta;
+
+			// Shimmer
+			const shimmer = 0.25 + Math.sin(Date.now() * 0.003 + patch.mesh.position.x) * 0.1;
+			(patch.mesh.material as MeshBasicMaterial).opacity = shimmer * Math.min(1, patch.lifetime / 2);
+
+			if (patch.lifetime <= 0) {
+				systemRefs.icePatchGroup?.remove(patch.mesh);
+				patch.mesh.geometry.dispose();
+				(patch.mesh.material as MeshBasicMaterial).dispose();
+				icePatches.splice(i, 1);
+			}
+		}
 	}
 
 	private spawnImpact(x: number, y: number, z: number, isGiant: boolean): void {
