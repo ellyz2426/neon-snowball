@@ -68,6 +68,9 @@ export interface EnemyData {
 	isDying: boolean;
 	deathTimer: number;
 	hitFlashTimer: number;
+	throwCount: number;
+	isCharging: boolean;
+	chargeTimer: number;
 }
 
 // ── Power-up data ───────────────────────────────────────────────
@@ -90,6 +93,13 @@ export interface ParticleData {
 	velocity: Vector3;
 	lifetime: number;
 	maxLifetime: number;
+}
+
+// ── Damage zone data ────────────────────────────────────────────
+export interface DamageZoneData {
+	mesh: Mesh;
+	lifetime: number;
+	playerInZoneTime: number;
 }
 
 // ── Game config per difficulty ───────────────────────────────────
@@ -228,6 +238,9 @@ export const gameState = {
 	freezeActive: false,
 	giantSnowballActive: false,
 	lastThrowTime: 0,
+	totalThrows: 0,
+	totalHits: 0,
+	playStartTime: 0,
 };
 
 // ── Shared object pools ─────────────────────────────────────────
@@ -236,6 +249,7 @@ export const enemies: EnemyData[] = [];
 export const powerUps: PowerUpData[] = [];
 export const activePowerUps: ActivePowerUp[] = [];
 export const particles: ParticleData[] = [];
+export const damageZones: DamageZoneData[] = [];
 
 // ── System references ───────────────────────────────────────────
 export const systemRefs: {
@@ -245,6 +259,7 @@ export const systemRefs: {
 	enemyGroup: Group | null;
 	particleGroup: Group | null;
 	powerUpGroup: Group | null;
+	damageZoneGroup: Group | null;
 } = {
 	scene: null,
 	arenaGroup: null,
@@ -252,6 +267,7 @@ export const systemRefs: {
 	enemyGroup: null,
 	particleGroup: null,
 	powerUpGroup: null,
+	damageZoneGroup: null,
 };
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -273,6 +289,9 @@ export function resetGameState(): void {
 	gameState.shieldActive = false;
 	gameState.freezeActive = false;
 	gameState.giantSnowballActive = false;
+	gameState.totalThrows = 0;
+	gameState.totalHits = 0;
+	gameState.playStartTime = Date.now();
 }
 
 export function getWaveEnemyCount(wave: number): number {

@@ -77,6 +77,12 @@
     padding: 4;
     border-radius: 4;
   }
+  .wave-announce {
+    font-size: 36;
+    color: #00ffff;
+    align-self: center;
+    display: none;
+  }
 </style>
 <Panel class="root">
   <div class="top-row">
@@ -97,5 +103,6 @@
     </div>
   </div>
   <div class="combo" id="combo"></div>
+  <div class="wave-announce" id="wave-announce"></div>
   <div class="powerup" id="powerup"></div>
 </Panel>

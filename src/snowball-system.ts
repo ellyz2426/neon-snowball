@@ -116,6 +116,8 @@ export class SnowballSystem extends createSystem({}) {
 			isGiant,
 		});
 
+		gameState.totalThrows++;
+
 		// Fire event for audio
 		window.dispatchEvent(new CustomEvent('snowball-throw', { detail: { isGiant } }));
 	}
@@ -189,6 +191,12 @@ export class SnowballSystem extends createSystem({}) {
 				window.dispatchEvent(new CustomEvent('snowball-impact', {
 					detail: { x: sb.mesh.position.x, y: 0, z: sb.mesh.position.z, isGiant: sb.isGiant },
 				}));
+				// Bomber AoE zone
+				if (!sb.isPlayerOwned && sb.isGiant) {
+					window.dispatchEvent(new CustomEvent('bomber-aoe', {
+						detail: { x: sb.mesh.position.x, z: sb.mesh.position.z },
+					}));
+				}
 			}
 
 			// Out of bounds
@@ -216,6 +224,7 @@ export class SnowballSystem extends createSystem({}) {
 					if (dist < hitRadius) {
 						enemy.health -= sb.damage;
 						enemy.hitFlashTimer = 0.15;
+						gameState.totalHits++;
 
 						if (sb.isGiant) {
 							// Giant snowball area damage

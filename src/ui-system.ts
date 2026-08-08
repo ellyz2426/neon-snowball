@@ -36,6 +36,7 @@ export class UISystem extends createSystem({}) {
 
 	private lastState: GameState = GameState.MENU;
 	private updateTimer = 0;
+	private waveAnnounceTimer = 0;
 
 	init(): void {
 		uiSystemInstance = this;
@@ -78,6 +79,15 @@ export class UISystem extends createSystem({}) {
 
 		window.addEventListener('wave-start', () => {
 			this.showPanel('hud');
+			// Show wave announcement
+			this.waveAnnounceTimer = 2.0;
+			const announceEl = this.hudPanel?.getElementById('wave-announce');
+			if (announceEl) {
+				announceEl.setProperties({
+					text: `WAVE ${gameState.wave}`,
+					display: 'flex',
+				});
+			}
 		});
 
 		// Keyboard pause
@@ -91,6 +101,17 @@ export class UISystem extends createSystem({}) {
 
 	update(delta: number): void {
 		this.updateTimer += delta;
+
+		// Wave announcement timer
+		if (this.waveAnnounceTimer > 0) {
+			this.waveAnnounceTimer -= delta;
+			if (this.waveAnnounceTimer <= 0) {
+				const announceEl = this.hudPanel?.getElementById('wave-announce');
+				if (announceEl) {
+					announceEl.setProperties({ display: 'none' });
+				}
+			}
+		}
 
 		// Update HUD every 100ms
 		if (this.updateTimer >= 0.1 && gameState.state === GameState.PLAYING) {
@@ -356,6 +377,31 @@ export class UISystem extends createSystem({}) {
 				text: `ENEMIES DEFEATED: ${gameState.totalEnemiesKilled}`,
 			});
 		}
+
+		// Statistics
+		const throwsEl = this.resultsPanel.getElementById('throws');
+		const accuracyEl = this.resultsPanel.getElementById('accuracy');
+		const timeEl = this.resultsPanel.getElementById('play-time');
+
+		if (throwsEl) {
+			throwsEl.setProperties({ text: `THROWS: ${gameState.totalThrows}` });
+		}
+		if (accuracyEl) {
+			const accuracy =
+				gameState.totalThrows > 0
+					? Math.floor((gameState.totalHits / gameState.totalThrows) * 100)
+					: 0;
+			accuracyEl.setProperties({ text: `ACCURACY: ${accuracy}%` });
+		}
+		if (timeEl) {
+			const elapsed = Math.floor((Date.now() - gameState.playStartTime) / 1000);
+			const mins = Math.floor(elapsed / 60);
+			const secs = elapsed % 60;
+			timeEl.setProperties({
+				text: `TIME: ${mins}:${secs.toString().padStart(2, '0')}`,
+			});
+		}
+
 		if (continueBtn) {
 			const el = this.resultsPanel.getElementById('btn-continue-text');
 			if (el) {

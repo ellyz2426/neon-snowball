@@ -19,6 +19,7 @@ import {
 	snowballs,
 	powerUps,
 	activePowerUps,
+	damageZones,
 	systemRefs,
 	EnemyType,
 	PowerUpType,
@@ -336,6 +337,14 @@ export class GameSystem extends createSystem({}) {
 
 		activePowerUps.length = 0;
 		this.spawnQueue = [];
+
+		// Remove all damage zones
+		for (const dz of damageZones) {
+			systemRefs.damageZoneGroup?.remove(dz.mesh);
+			dz.mesh.geometry.dispose();
+			(dz.mesh.material as MeshBasicMaterial).dispose();
+		}
+		damageZones.length = 0;
 	}
 
 	saveHighScore(): void {

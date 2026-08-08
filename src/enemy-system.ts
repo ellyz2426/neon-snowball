@@ -29,6 +29,7 @@ import {
 	NEON_PURPLE,
 	NEON_PINK,
 	NEON_BLUE,
+	ARENA_RADIUS,
 } from './game-state.js';
 import { SnowballSystem } from './snowball-system.js';
 
@@ -71,11 +72,52 @@ export class EnemySystem extends createSystem({}) {
 				this.setEnemyEmissive(enemy.group, enemy.hitFlashTimer > 0 ? 0xff4444 : 0x000000);
 			}
 
-			// Movement (unless frozen)
-			const speedMult = isFrozen ? 0.15 : diffConfig.enemySpeedMult;
 			const dist = enemy.group.position.distanceTo(_playerPos);
 
-			if (dist > 4) {
+			// Boss charge timer countdown (when not charging)
+			if (enemy.type === EnemyType.BOSS && !enemy.isCharging && !isFrozen) {
+				enemy.chargeTimer -= delta;
+				if (enemy.chargeTimer <= 0) {
+					enemy.isCharging = true;
+					enemy.chargeTimer = 3.0; // charge duration
+				}
+			}
+
+			// Movement (unless frozen)
+			const speedMult = isFrozen ? 0.15 : diffConfig.enemySpeedMult;
+
+			if (enemy.type === EnemyType.BOSS && enemy.isCharging) {
+				// Boss charge: rush toward player at high speed
+				_dir.copy(_playerPos).sub(enemy.group.position).normalize();
+				_dir.y = 0;
+				const chargeSpeed = 4.0;
+				enemy.group.position.x += _dir.x * chargeSpeed * delta;
+				enemy.group.position.z += _dir.z * chargeSpeed * delta;
+				enemy.chargeTimer -= delta;
+
+				// Hit player if close enough
+				if (dist < 2.0) {
+					if (!gameState.shieldActive) {
+						const dmg = 25;
+						gameState.health -= dmg;
+						gameState.combo = 0;
+						window.dispatchEvent(new CustomEvent('player-hit', {
+							detail: { damage: dmg },
+						}));
+						if (gameState.health <= 0) {
+							gameState.health = 0;
+							gameState.state = GameState.GAME_OVER;
+							window.dispatchEvent(new CustomEvent('game-over'));
+						}
+					}
+					enemy.isCharging = false;
+					enemy.chargeTimer = 12;
+				} else if (enemy.chargeTimer <= 0) {
+					// Charge expired
+					enemy.isCharging = false;
+					enemy.chargeTimer = 12;
+				}
+			} else if (dist > 4) {
 				// Move toward player
 				_dir
 					.copy(_playerPos)
@@ -109,33 +151,68 @@ export class EnemySystem extends createSystem({}) {
 				enemy.group.rotation.y = Math.atan2(_dir.x, _dir.z);
 			}
 
-			// Throwing
-			const throwMult = isFrozen ? 0.3 : diffConfig.enemyThrowRateMult;
-			enemy.throwTimer -= delta * throwMult;
+			// Throwing (skip while charging)
+			if (!(enemy.type === EnemyType.BOSS && enemy.isCharging)) {
+				const throwMult = isFrozen ? 0.3 : diffConfig.enemyThrowRateMult;
+				enemy.throwTimer -= delta * throwMult;
 
-			if (enemy.throwTimer <= 0 && dist < 15) {
-				enemy.throwTimer = enemy.throwCooldown;
+				if (enemy.throwTimer <= 0 && dist < 15) {
+					enemy.throwTimer = enemy.throwCooldown;
+					enemy.throwCount++;
 
-				// Calculate throw origin (head level)
-				const headY = enemy.type === EnemyType.BOSS ? 3.5 : 1.5;
-				_throwOrigin.copy(enemy.group.position);
-				_throwOrigin.y = headY * (enemy.type === EnemyType.BOSS ? 1 : ENEMY_CONFIGS[enemy.type].scale);
+					if (enemy.type === EnemyType.BOSS && enemy.throwCount % 3 === 0) {
+						// Boss ground pound: radial snowball burst + screen shake
+						this.bossGroundPound(enemy);
+					} else {
+						// Normal throw
+						const headY = enemy.type === EnemyType.BOSS ? 3.5 : 1.5;
+						_throwOrigin.copy(enemy.group.position);
+						_throwOrigin.y = headY * (enemy.type === EnemyType.BOSS ? 1 : ENEMY_CONFIGS[enemy.type].scale);
 
-				const config = ENEMY_CONFIGS[enemy.type];
-				SnowballSystem.createEnemySnowball(
-					_throwOrigin,
-					_playerPos,
-					config.damage,
-					enemy.type,
-				);
+						const config = ENEMY_CONFIGS[enemy.type];
+						SnowballSystem.createEnemySnowball(
+							_throwOrigin,
+							_playerPos,
+							config.damage,
+							enemy.type,
+						);
 
-				window.dispatchEvent(new CustomEvent('enemy-throw'));
+						window.dispatchEvent(new CustomEvent('enemy-throw'));
+					}
+				}
 			}
 
 			// Bobbing animation
 			const bob = Math.sin(Date.now() * 0.003 + enemy.group.position.x) * 0.03;
 			enemy.group.position.y = bob;
 		}
+	}
+
+	private bossGroundPound(boss: EnemyData): void {
+		// Screen shake
+		window.dispatchEvent(new CustomEvent('screen-shake'));
+
+		// Spawn radial snowballs
+		const numBalls = 8;
+		const origin = boss.group.position.clone();
+		origin.y = 1.5;
+		const config = ENEMY_CONFIGS[EnemyType.BOSS];
+
+		for (let i = 0; i < numBalls; i++) {
+			const angle = (i / numBalls) * Math.PI * 2;
+			const target = new Vector3(
+				origin.x + Math.cos(angle) * 10,
+				0,
+				origin.z + Math.sin(angle) * 10,
+			);
+			SnowballSystem.createEnemySnowball(origin, target, config.damage, EnemyType.BOSS);
+		}
+
+		// Particles at boss position
+		window.dispatchEvent(new CustomEvent('boss-ground-pound', {
+			detail: { x: boss.group.position.x, z: boss.group.position.z },
+		}));
+		window.dispatchEvent(new CustomEvent('enemy-throw'));
 	}
 
 	private setEnemyEmissive(group: Group, color: number): void {
@@ -313,6 +390,9 @@ export class EnemySystem extends createSystem({}) {
 			isDying: false,
 			deathTimer: 0,
 			hitFlashTimer: 0,
+			throwCount: 0,
+			isCharging: false,
+			chargeTimer: type === EnemyType.BOSS ? 10 : 999,
 		});
 	}
 }

@@ -67,6 +67,10 @@
   <div class="stat" id="max-combo">MAX COMBO: 0x</div>
   <div class="stat" id="kills">ENEMIES DEFEATED: 0</div>
   <div class="divider"></div>
+  <div class="stat" id="throws">THROWS: 0</div>
+  <div class="stat" id="accuracy">ACCURACY: 0%</div>
+  <div class="stat" id="play-time">TIME: 0:00</div>
+  <div class="divider"></div>
   <div class="btn" id="btn-continue">
     <div class="btn-text" id="btn-continue-text">NEXT WAVE</div>
   </div>

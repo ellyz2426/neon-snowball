@@ -27,6 +27,8 @@ import {
 } from '@iwsdk/core';
 import {
 	systemRefs,
+	gameState,
+	GameState,
 	ARENA_RADIUS,
 	NEON_CYAN,
 	NEON_BLUE,
@@ -35,6 +37,7 @@ import {
 	WARM_YELLOW,
 	SNOW_WHITE,
 	ICE_BLUE,
+	isBossWave,
 } from './game-state.js';
 
 export class ArenaSystem extends createSystem({}) {
@@ -71,6 +74,11 @@ export class ArenaSystem extends createSystem({}) {
 		powerUpGroup.name = 'powerups';
 		scene.add(powerUpGroup);
 		systemRefs.powerUpGroup = powerUpGroup;
+
+		const damageZoneGroup = new Group();
+		damageZoneGroup.name = 'damage-zones';
+		scene.add(damageZoneGroup);
+		systemRefs.damageZoneGroup = damageZoneGroup;
 
 		// Lighting
 		this.setupLighting(scene);
@@ -453,14 +461,23 @@ export class ArenaSystem extends createSystem({}) {
 	update(delta: number): void {
 		this.time += delta;
 
+		// Check if boss wave for snowstorm effect
+		const isStorm =
+			gameState.wave > 0 &&
+			isBossWave(gameState.wave) &&
+			gameState.state === GameState.PLAYING;
+		const windMult = isStorm ? 3.0 : 1.0;
+		const fallMult = isStorm ? 2.0 : 1.0;
+		const swayAmt = isStorm ? 0.04 : 0.01;
+
 		// Animate falling snow
 		for (const sp of this.snowParticles) {
-			sp.mesh.position.x += sp.vel.x * delta;
-			sp.mesh.position.y += sp.vel.y * delta;
-			sp.mesh.position.z += sp.vel.z * delta;
+			sp.mesh.position.x += sp.vel.x * delta * windMult;
+			sp.mesh.position.y += sp.vel.y * delta * fallMult;
+			sp.mesh.position.z += sp.vel.z * delta * windMult;
 
-			// Gentle horizontal sway
-			sp.mesh.position.x += Math.sin(this.time * 0.5 + sp.baseY) * 0.01;
+			// Horizontal sway (stronger in storm)
+			sp.mesh.position.x += Math.sin(this.time * 0.5 + sp.baseY) * swayAmt;
 
 			// Reset at bottom
 			if (sp.mesh.position.y < 0) {
@@ -468,6 +485,13 @@ export class ArenaSystem extends createSystem({}) {
 				sp.mesh.position.x = (Math.random() - 0.5) * 40;
 				sp.mesh.position.z = (Math.random() - 0.5) * 40;
 			}
+		}
+
+		// Adjust fog density for storm
+		if (this.world.scene.fog) {
+			const targetDensity = isStorm ? 0.04 : 0.02;
+			const fog = this.world.scene.fog as FogExp2;
+			fog.density += (targetDensity - fog.density) * delta * 2;
 		}
 
 		// Animate aurora lights
