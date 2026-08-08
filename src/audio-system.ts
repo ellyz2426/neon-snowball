@@ -15,7 +15,11 @@ export class AudioSystem extends createSystem({}) {
 		// Events
 		window.addEventListener('snowball-throw', (e: Event) => {
 			const detail = (e as CustomEvent).detail;
-			this.playThrow(detail?.isGiant);
+			if (detail?.spread) {
+				this.playSpreadShot();
+			} else {
+				this.playThrow(detail?.isGiant);
+			}
 		});
 		window.addEventListener('snowball-impact', (e: Event) => {
 			const detail = (e as CustomEvent).detail;
@@ -137,6 +141,14 @@ export class AudioSystem extends createSystem({}) {
 		// Whoosh sound
 		this.playNoise(0.25, isGiant ? 600 : 1200, 0.12);
 		this.playNote(isGiant ? 200 : 400, 0.15, 'sine', 0.08);
+	}
+
+	private playSpreadShot(): void {
+		// Triple whoosh with rising pitch
+		this.playNoise(0.3, 800, 0.15);
+		this.playNote(300, 0.15, 'sine', 0.1);
+		setTimeout(() => this.playNote(400, 0.1, 'sine', 0.08), 50);
+		setTimeout(() => this.playNote(500, 0.1, 'sine', 0.08), 100);
 	}
 
 	private playImpact(isGiant: boolean): void {

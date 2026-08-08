@@ -47,6 +47,9 @@ export class ArenaSystem extends createSystem({}) {
 	private ambientLight: AmbientLight | null = null;
 	private moonLight: DirectionalLight | null = null;
 	private time = 0;
+	private auroraCurtains: Mesh[] = [];
+	private starField: Mesh[] = [];
+	private windDrifts: { mesh: Mesh; vel: Vector3; life: number; maxLife: number }[] = [];
 
 	init(): void {
 		const scene = this.world.scene;
@@ -124,6 +127,15 @@ export class ArenaSystem extends createSystem({}) {
 
 		// Falling snow
 		this.initFallingSnow(scene);
+
+		// Sky dome with stars
+		this.buildSkyDome(scene);
+
+		// Aurora curtain meshes
+		this.buildAuroraCurtains(scene);
+
+		// Ground-level wind drift particles
+		this.initWindDrifts(scene);
 	}
 
 	private setupLighting(scene: Object3D): void {
@@ -557,6 +569,167 @@ export class ArenaSystem extends createSystem({}) {
 				: 0.15;
 			light.intensity = auroraMax + Math.sin(phase) * auroraMax;
 			light.position.y = 12 + Math.sin(phase * 0.7) * 3;
+		}
+
+		// Animate aurora curtain meshes
+		this.updateAuroraCurtains(weather, isStorm);
+
+		// Animate wind drifts
+		this.updateWindDrifts(delta, windMult);
+	}
+
+	private buildSkyDome(scene: Object3D): void {
+		// Star field — small glowing spheres scattered on a large sphere
+		const starMat = new MeshBasicMaterial({
+			color: 0xffffff,
+			transparent: true,
+			opacity: 0.8,
+		});
+		for (let i = 0; i < 120; i++) {
+			const size = 0.05 + Math.random() * 0.08;
+			const geo = new SphereGeometry(size, 4, 3);
+			const star = new Mesh(geo, starMat.clone());
+			// Random position on a large sphere (radius 35)
+			const theta = Math.random() * Math.PI * 2;
+			const phi = Math.random() * Math.PI * 0.45; // Upper hemisphere only
+			const r = 35;
+			star.position.set(
+				r * Math.sin(phi) * Math.cos(theta),
+				r * Math.cos(phi) + 5,
+				r * Math.sin(phi) * Math.sin(theta),
+			);
+			scene.add(star);
+			this.starField.push(star);
+		}
+
+		// Dark sky hemisphere (subtle gradient backdrop)
+		const skyGeo = new SphereGeometry(40, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+		const skyMat = new MeshBasicMaterial({
+			color: 0x050a18,
+			side: DoubleSide,
+			transparent: true,
+			opacity: 0.95,
+		});
+		const sky = new Mesh(skyGeo, skyMat);
+		sky.position.y = -1;
+		scene.add(sky);
+	}
+
+	private buildAuroraCurtains(scene: Object3D): void {
+		// Animated aurora curtain bands — tall thin plane meshes
+		const auroraColors = [0x00ff88, 0x4488ff, 0x8844ff, 0x00ffcc, 0x22ff66];
+		for (let i = 0; i < 5; i++) {
+			const width = 8 + Math.random() * 12;
+			const height = 3 + Math.random() * 4;
+			const geo = new PlaneGeometry(width, height, 6, 1);
+			const mat = new MeshBasicMaterial({
+				color: auroraColors[i % auroraColors.length],
+				transparent: true,
+				opacity: 0.08,
+				side: DoubleSide,
+			});
+			const curtain = new Mesh(geo, mat);
+			const angle = (i / 5) * Math.PI * 2 + Math.random() * 0.5;
+			const dist = 25 + Math.random() * 5;
+			curtain.position.set(
+				Math.cos(angle) * dist,
+				14 + Math.random() * 4,
+				Math.sin(angle) * dist,
+			);
+			// Face inward
+			curtain.lookAt(0, curtain.position.y, 0);
+			scene.add(curtain);
+			this.auroraCurtains.push(curtain);
+		}
+	}
+
+	private updateAuroraCurtains(weather: WeatherType, isStorm: boolean): void {
+		const baseOpacity = (weather === WeatherType.BLIZZARD || isStorm) ? 0.03
+			: weather === WeatherType.HEAVY_SNOW ? 0.05
+			: 0.1;
+
+		for (let i = 0; i < this.auroraCurtains.length; i++) {
+			const curtain = this.auroraCurtains[i];
+			const phase = this.time * 0.2 + i * 1.2;
+			const wave = Math.sin(phase) * 0.5 + 0.5;
+			(curtain.material as MeshBasicMaterial).opacity = baseOpacity * (0.3 + wave * 0.7);
+			// Gentle vertical undulation
+			curtain.position.y = 14 + i * 0.5 + Math.sin(phase * 0.7) * 1.5;
+			// Subtle horizontal sway
+			curtain.rotation.y += Math.sin(this.time * 0.1 + i) * 0.0003;
+		}
+
+		// Twinkle stars
+		for (let i = 0; i < this.starField.length; i++) {
+			const star = this.starField[i];
+			const twinkle = Math.sin(this.time * 2 + i * 7.3) * 0.3 + 0.6;
+			const weatherDim = (weather === WeatherType.BLIZZARD || isStorm) ? 0.15
+				: weather === WeatherType.HEAVY_SNOW ? 0.4
+				: 1.0;
+			(star.material as MeshBasicMaterial).opacity = twinkle * weatherDim;
+		}
+	}
+
+	private initWindDrifts(scene: Object3D): void {
+		// Low-lying snow wisps that flow near the ground
+		const driftMat = new MeshBasicMaterial({
+			color: 0xddeeff,
+			transparent: true,
+			opacity: 0.2,
+		});
+		for (let i = 0; i < 40; i++) {
+			const w = 0.3 + Math.random() * 0.5;
+			const h = 0.02;
+			const geo = new BoxGeometry(w, h, 0.04);
+			const drift = new Mesh(geo, driftMat.clone());
+			const angle = Math.random() * Math.PI * 2;
+			const dist = 2 + Math.random() * 12;
+			drift.position.set(
+				Math.cos(angle) * dist,
+				0.02 + Math.random() * 0.08,
+				Math.sin(angle) * dist,
+			);
+			drift.rotation.y = Math.random() * Math.PI;
+			scene.add(drift);
+			const life = 2 + Math.random() * 4;
+			this.windDrifts.push({
+				mesh: drift,
+				vel: new Vector3(
+					0.3 + Math.random() * 0.5,
+					0,
+					(Math.random() - 0.5) * 0.2,
+				),
+				life,
+				maxLife: life,
+			});
+		}
+	}
+
+	private updateWindDrifts(delta: number, windMult: number): void {
+		for (const drift of this.windDrifts) {
+			drift.life -= delta;
+			drift.mesh.position.x += drift.vel.x * delta * windMult;
+			drift.mesh.position.z += drift.vel.z * delta * windMult;
+
+			// Fade based on lifetime
+			const alpha = Math.min(1, drift.life / (drift.maxLife * 0.3));
+			const fadeIn = Math.min(1, (drift.maxLife - drift.life) / (drift.maxLife * 0.2));
+			const baseOpacity = windMult > 1.5 ? 0.35 : 0.2;
+			(drift.mesh.material as MeshBasicMaterial).opacity = baseOpacity * alpha * fadeIn;
+
+			// Reset when expired or too far
+			if (drift.life <= 0 || Math.abs(drift.mesh.position.x) > 18 || Math.abs(drift.mesh.position.z) > 18) {
+				const angle = Math.random() * Math.PI * 2;
+				const dist = 2 + Math.random() * 8;
+				drift.mesh.position.set(
+					Math.cos(angle) * dist - 8,
+					0.02 + Math.random() * 0.08,
+					Math.sin(angle) * dist,
+				);
+				drift.life = 2 + Math.random() * 4;
+				drift.maxLife = drift.life;
+				drift.vel.set(0.3 + Math.random() * 0.5, 0, (Math.random() - 0.5) * 0.2);
+			}
 		}
 	}
 

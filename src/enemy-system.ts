@@ -90,6 +90,12 @@ export class EnemySystem extends createSystem({}) {
 			// Boss charge timer countdown (when not charging)
 			if (enemy.type === EnemyType.BOSS && !enemy.isCharging && !isFrozen) {
 				enemy.chargeTimer -= delta;
+				// Telegraph warning when about to charge (1.5 seconds before)
+				if (enemy.chargeTimer <= 1.5 && enemy.chargeTimer > 1.5 - delta) {
+					window.dispatchEvent(new CustomEvent('boss-charge-telegraph', {
+						detail: { x: _playerPos.x, z: _playerPos.z },
+					}));
+				}
 				if (enemy.chargeTimer <= 0) {
 					enemy.isCharging = true;
 					enemy.chargeTimer = 3.0; // charge duration

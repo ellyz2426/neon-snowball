@@ -168,6 +168,12 @@ export class SnowballSystem extends createSystem({}) {
 	private throwSnowball(chargeRatio: number = 0): void {
 		if (!systemRefs.snowballGroup) return;
 
+		// Full fire charge: spread shot (3 snowballs in a fan)
+		if (chargeRatio > 0.8) {
+			this.throwSpreadShot(chargeRatio);
+			return;
+		}
+
 		// Get camera direction
 		const camera = this.world.camera;
 		camera.getWorldDirection(_dir);
@@ -233,6 +239,68 @@ export class SnowballSystem extends createSystem({}) {
 
 		// Fire event for audio
 		window.dispatchEvent(new CustomEvent('snowball-throw', { detail: { isGiant, charged: isCharged, element } }));
+	}
+
+	/** Fire-charged spread shot: 3 snowballs in a fan pattern */
+	private throwSpreadShot(chargeRatio: number): void {
+		if (!systemRefs.snowballGroup) return;
+
+		const camera = this.world.camera;
+		camera.getWorldDirection(_dir);
+		camera.getWorldPosition(_pos);
+
+		const isGiant = gameState.giantSnowballActive;
+		const speed = THROW_SPEED + chargeRatio * CHARGE_SPEED_BONUS;
+		const baseDamage = (isGiant ? 3 : 1) + Math.floor(chargeRatio * CHARGE_DAMAGE_BONUS);
+
+		// Fan angles: center, left, right (spread ~15 degrees)
+		const spreadAngles = [0, -0.26, 0.26];
+
+		for (const angleOffset of spreadAngles) {
+			const geo = isGiant ? giantSnowballGeo : new SphereGeometry(0.14, 12, 8);
+			const mat = new MeshStandardMaterial({
+				color: 0xffccaa,
+				roughness: 0.4,
+				metalness: 0.1,
+				emissive: new Color(0xff4400),
+				emissiveIntensity: 0.7,
+			});
+
+			const mesh = new Mesh(geo, mat);
+			mesh.position.copy(_pos).add(_dir.clone().multiplyScalar(0.5));
+
+			// Rotate direction by angleOffset around Y axis
+			const spreadDir = _dir.clone();
+			const cos = Math.cos(angleOffset);
+			const sin = Math.sin(angleOffset);
+			const rx = spreadDir.x * cos - spreadDir.z * sin;
+			const rz = spreadDir.x * sin + spreadDir.z * cos;
+			spreadDir.x = rx;
+			spreadDir.z = rz;
+
+			const velocity = spreadDir.multiplyScalar(speed);
+			velocity.y += 2;
+
+			systemRefs.snowballGroup.add(mesh);
+
+			// Slightly reduced damage per ball (balancing 3x projectiles)
+			const damage = Math.max(1, Math.floor(baseDamage * 0.7));
+
+			snowballs.push({
+				mesh,
+				velocity,
+				damage,
+				lifetime: SNOWBALL_LIFETIME,
+				isPlayerOwned: true,
+				isGiant,
+				element: 'fire',
+			});
+		}
+
+		gameState.totalThrows += 3;
+		window.dispatchEvent(new CustomEvent('snowball-throw', {
+			detail: { isGiant, charged: true, element: 'fire', spread: true },
+		}));
 	}
 
 	/** Called by EnemySystem to create enemy snowballs */
@@ -305,8 +373,11 @@ export class SnowballSystem extends createSystem({}) {
 				window.dispatchEvent(new CustomEvent('snowball-impact', {
 					detail: { x: sb.mesh.position.x, y: 0, z: sb.mesh.position.z, isGiant: sb.isGiant },
 				}));
-				// Bomber AoE zone
+				// Bomber AoE zone with telegraph
 				if (!sb.isPlayerOwned && sb.isGiant) {
+					window.dispatchEvent(new CustomEvent('bomber-telegraph', {
+						detail: { x: sb.mesh.position.x, z: sb.mesh.position.z },
+					}));
 					window.dispatchEvent(new CustomEvent('bomber-aoe', {
 						detail: { x: sb.mesh.position.x, z: sb.mesh.position.z },
 					}));

@@ -10,6 +10,7 @@ import {
 	CircleGeometry,
 	ConeGeometry,
 	BoxGeometry,
+	RingGeometry,
 	Group,
 	Vector3,
 	Color,
@@ -52,6 +53,7 @@ export class EffectsSystem extends createSystem({}) {
 	private shakeOriginalPos = new Vector3();
 	private icicleTimer = 0;
 	private icicleInterval = 8; // seconds between icicle drops
+	private telegraphMarkers: { mesh: Mesh; lifetime: number }[] = [];
 
 	init(): void {
 		// Snowball impact
@@ -150,6 +152,18 @@ export class EffectsSystem extends createSystem({}) {
 			}, 800);
 		});
 
+		// Boss charge warning telegraph
+		window.addEventListener('boss-charge-telegraph', (e: Event) => {
+			const d = (e as CustomEvent).detail;
+			this.createTelegraph(d.x, d.z, 0xff4400, 2.0);
+		});
+
+		// Bomber throw warning telegraph
+		window.addEventListener('bomber-telegraph', (e: Event) => {
+			const d = (e as CustomEvent).detail;
+			this.createTelegraph(d.x, d.z, 0xff2200, 1.5);
+		});
+
 		// Create shield indicator mesh
 		const shieldGeo = new SphereGeometry(1.0, 16, 12);
 		const shieldMat = new MeshBasicMaterial({
@@ -207,6 +221,9 @@ export class EffectsSystem extends createSystem({}) {
 
 		// Ice patches
 		this.updateIcePatches(delta);
+
+		// Telegraph warning markers
+		this.updateTelegraphs(delta);
 
 		// Screen shake
 		if (this.shakeIntensity > 0 && systemRefs.arenaGroup) {
@@ -615,6 +632,47 @@ export class EffectsSystem extends createSystem({}) {
 				patch.mesh.geometry.dispose();
 				(patch.mesh.material as MeshBasicMaterial).dispose();
 				icePatches.splice(i, 1);
+			}
+		}
+	}
+
+	private createTelegraph(x: number, z: number, color: number, duration: number): void {
+		if (!systemRefs.damageZoneGroup) return;
+
+		// Pulsing ring on the ground as a warning
+		const geo = new RingGeometry(0.8, 1.2, 24);
+		const mat = new MeshBasicMaterial({
+			color,
+			transparent: true,
+			opacity: 0.6,
+			side: DoubleSide,
+		});
+		const mesh = new Mesh(geo, mat);
+		mesh.rotation.x = -Math.PI / 2;
+		mesh.position.set(x, 0.04, z);
+		systemRefs.damageZoneGroup.add(mesh);
+
+		this.telegraphMarkers.push({ mesh, lifetime: duration });
+	}
+
+	private updateTelegraphs(delta: number): void {
+		for (let i = this.telegraphMarkers.length - 1; i >= 0; i--) {
+			const tg = this.telegraphMarkers[i];
+			tg.lifetime -= delta;
+
+			// Pulsing effect
+			const pulse = Math.sin(Date.now() * 0.015) * 0.3 + 0.5;
+			(tg.mesh.material as MeshBasicMaterial).opacity = pulse * Math.min(1, tg.lifetime);
+
+			// Expanding ring effect
+			const expandScale = 1.0 + (1 - Math.min(1, tg.lifetime)) * 0.3;
+			tg.mesh.scale.setScalar(expandScale);
+
+			if (tg.lifetime <= 0) {
+				systemRefs.damageZoneGroup?.remove(tg.mesh);
+				tg.mesh.geometry.dispose();
+				(tg.mesh.material as MeshBasicMaterial).dispose();
+				this.telegraphMarkers.splice(i, 1);
 			}
 		}
 	}
