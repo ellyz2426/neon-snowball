@@ -1,0 +1,79 @@
+<style>
+  .root {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30;
+    gap: 12;
+    background-color: rgba(0, 8, 25, 0.94);
+    border-radius: 16;
+    border-width: 2;
+    border-color: rgba(0, 255, 255, 0.3);
+    width: 360;
+  }
+  .title {
+    font-size: 30;
+    color: #ffffff;
+    margin-bottom: 4;
+  }
+  .stat {
+    font-size: 16;
+    color: rgba(200, 220, 255, 0.85);
+  }
+  .score {
+    font-size: 24;
+    color: #00ffff;
+  }
+  .divider {
+    width: 280;
+    height: 1;
+    background-color: rgba(0, 255, 255, 0.2);
+    margin-top: 4;
+    margin-bottom: 4;
+  }
+  .btn {
+    padding: 12;
+    background-color: rgba(0, 255, 255, 0.12);
+    border-radius: 8;
+    border-width: 1;
+    border-color: rgba(0, 255, 255, 0.4);
+    width: 260;
+    align-items: center;
+    cursor: pointer;
+  }
+  .btn-text {
+    font-size: 17;
+    color: #00ffff;
+  }
+  .btn-secondary {
+    padding: 10;
+    background-color: rgba(100, 100, 150, 0.1);
+    border-radius: 8;
+    border-width: 1;
+    border-color: rgba(100, 100, 150, 0.3);
+    width: 260;
+    align-items: center;
+    cursor: pointer;
+  }
+  .btn-secondary-text {
+    font-size: 15;
+    color: rgba(180, 180, 220, 0.8);
+  }
+</style>
+<Panel class="root">
+  <div class="title" id="title">WAVE COMPLETE!</div>
+  <div class="score" id="score">SCORE: 0</div>
+  <div class="stat" id="wave">WAVE 1 CLEARED</div>
+  <div class="stat" id="max-combo">MAX COMBO: 0x</div>
+  <div class="stat" id="kills">ENEMIES DEFEATED: 0</div>
+  <div class="divider"></div>
+  <div class="btn" id="btn-continue">
+    <div class="btn-text" id="btn-continue-text">NEXT WAVE</div>
+  </div>
+  <div class="btn-secondary" id="btn-restart">
+    <div class="btn-secondary-text">RESTART</div>
+  </div>
+  <div class="btn-secondary" id="btn-menu">
+    <div class="btn-secondary-text">MAIN MENU</div>
+  </div>
+</Panel>

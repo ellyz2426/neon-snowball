@@ -1,0 +1,124 @@
+<style>
+  .root {
+    flex-direction: column;
+    align-items: center;
+    padding: 28;
+    gap: 12;
+    background-color: rgba(0, 8, 25, 0.94);
+    border-radius: 16;
+    border-width: 2;
+    border-color: rgba(0, 255, 255, 0.3);
+    width: 380;
+  }
+  .title {
+    font-size: 24;
+    color: #ffffff;
+    margin-bottom: 6;
+  }
+  .section-title {
+    font-size: 16;
+    color: #00ffff;
+    margin-top: 6;
+  }
+  .desc {
+    font-size: 13;
+    color: rgba(200, 220, 240, 0.8);
+  }
+  .divider {
+    width: 320;
+    height: 1;
+    background-color: rgba(0, 255, 255, 0.15);
+    margin-top: 2;
+    margin-bottom: 2;
+  }
+  .item-row {
+    flex-direction: row;
+    gap: 8;
+    align-items: center;
+  }
+  .icon {
+    font-size: 18;
+    color: rgba(200, 230, 255, 0.8);
+  }
+  .item-text {
+    font-size: 13;
+    color: rgba(200, 220, 240, 0.8);
+  }
+  .power-label {
+    font-size: 14;
+    color: #ff44aa;
+  }
+  .power-desc {
+    font-size: 12;
+    color: rgba(200, 200, 230, 0.6);
+  }
+  .btn-back {
+    padding: 10;
+    background-color: rgba(100, 100, 150, 0.1);
+    border-radius: 8;
+    border-width: 1;
+    border-color: rgba(100, 100, 150, 0.3);
+    width: 260;
+    align-items: center;
+    cursor: pointer;
+    margin-top: 8;
+  }
+  .btn-back-text {
+    font-size: 15;
+    color: rgba(180, 180, 220, 0.8);
+  }
+</style>
+<Panel class="root">
+  <div class="title">HOW TO PLAY</div>
+  <div class="desc">Survive waves of snowball-throwing snowmen!</div>
+  <div class="divider"></div>
+  <div class="section-title">COMBAT</div>
+  <div class="item-row">
+    <div class="icon">🎯</div>
+    <div class="item-text">Aim and click/trigger to throw snowballs</div>
+  </div>
+  <div class="item-row">
+    <div class="icon">❄</div>
+    <div class="item-text">Hit snowmen to defeat them and score points</div>
+  </div>
+  <div class="item-row">
+    <div class="icon">💥</div>
+    <div class="item-text">Dodge incoming snowballs to stay alive</div>
+  </div>
+  <div class="item-row">
+    <div class="icon">🔥</div>
+    <div class="item-text">Chain hits for combo multipliers</div>
+  </div>
+  <div class="divider"></div>
+  <div class="section-title">ENEMIES</div>
+  <div class="item-row">
+    <div class="icon">⛄</div>
+    <div class="item-text">Basic — standard snowman</div>
+  </div>
+  <div class="item-row">
+    <div class="icon">💨</div>
+    <div class="item-text">Speedy — fast but fragile</div>
+  </div>
+  <div class="item-row">
+    <div class="icon">🛡</div>
+    <div class="item-text">Tank — slow, takes many hits</div>
+  </div>
+  <div class="item-row">
+    <div class="icon">💣</div>
+    <div class="item-text">Bomber — explosive snowballs!</div>
+  </div>
+  <div class="item-row">
+    <div class="icon">👑</div>
+    <div class="item-text">Boss — every 5th wave</div>
+  </div>
+  <div class="divider"></div>
+  <div class="section-title">POWER-UPS</div>
+  <div class="power-label">Walk into floating gems to collect</div>
+  <div class="power-desc">Giant — area damage snowballs</div>
+  <div class="power-desc">Rapid — fast throwing</div>
+  <div class="power-desc">Shield — block incoming hits</div>
+  <div class="power-desc">Freeze — slow all enemies</div>
+  <div class="btn-back" id="btn-back">
+    <div class="btn-back-text">BACK</div>
+  </div>
+</Panel>

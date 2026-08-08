@@ -1,0 +1,101 @@
+<style>
+  .root {
+    flex-direction: column;
+    padding: 14;
+    gap: 8;
+    background-color: rgba(0, 8, 25, 0.75);
+    border-radius: 12;
+    border-width: 1;
+    border-color: rgba(0, 255, 255, 0.2);
+    width: 260;
+  }
+  .top-row {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .wave-label {
+    font-size: 16;
+    color: rgba(136, 204, 255, 0.9);
+  }
+  .enemies-label {
+    font-size: 13;
+    color: rgba(200, 200, 255, 0.7);
+  }
+  .score-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 6;
+  }
+  .score-label {
+    font-size: 13;
+    color: rgba(180, 180, 220, 0.7);
+  }
+  .score-value {
+    font-size: 28;
+    color: #ffffff;
+  }
+  .health-section {
+    flex-direction: column;
+    gap: 3;
+  }
+  .health-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 6;
+  }
+  .health-label {
+    font-size: 12;
+    color: rgba(180, 180, 220, 0.6);
+  }
+  .health-value {
+    font-size: 14;
+    color: #44ff88;
+  }
+  .health-bar-bg {
+    width: 200;
+    height: 8;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4;
+  }
+  .health-bar {
+    width: 200;
+    height: 8;
+    background-color: rgba(68, 255, 136, 0.8);
+    border-radius: 4;
+  }
+  .combo {
+    font-size: 20;
+    color: #ffdd44;
+    align-self: center;
+  }
+  .powerup {
+    font-size: 14;
+    color: #ff44aa;
+    align-self: center;
+    background-color: rgba(255, 68, 170, 0.1);
+    padding: 4;
+    border-radius: 4;
+  }
+</style>
+<Panel class="root">
+  <div class="top-row">
+    <div class="wave-label" id="wave">WAVE 1</div>
+    <div class="enemies-label" id="enemies">0 LEFT</div>
+  </div>
+  <div class="score-row">
+    <div class="score-label">SCORE</div>
+    <div class="score-value" id="score">0</div>
+  </div>
+  <div class="health-section">
+    <div class="health-row">
+      <div class="health-label">HP</div>
+      <div class="health-value" id="health">100</div>
+    </div>
+    <div class="health-bar-bg">
+      <div class="health-bar" id="health-bar"></div>
+    </div>
+  </div>
+  <div class="combo" id="combo"></div>
+  <div class="powerup" id="powerup"></div>
+</Panel>

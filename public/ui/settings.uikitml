@@ -1,0 +1,110 @@
+<style>
+  .root {
+    flex-direction: column;
+    align-items: center;
+    padding: 28;
+    gap: 14;
+    background-color: rgba(0, 8, 25, 0.94);
+    border-radius: 16;
+    border-width: 2;
+    border-color: rgba(0, 255, 255, 0.3);
+    width: 340;
+  }
+  .title {
+    font-size: 24;
+    color: #ffffff;
+    margin-bottom: 6;
+  }
+  .label {
+    font-size: 14;
+    color: rgba(180, 200, 230, 0.8);
+  }
+  .current {
+    font-size: 16;
+    color: #00ffff;
+    margin-bottom: 8;
+  }
+  .diff-row {
+    flex-direction: row;
+    gap: 10;
+  }
+  .btn {
+    padding: 10;
+    background-color: rgba(0, 255, 255, 0.1);
+    border-radius: 8;
+    border-width: 1;
+    border-color: rgba(0, 255, 255, 0.3);
+    width: 80;
+    align-items: center;
+    cursor: pointer;
+  }
+  .btn-text {
+    font-size: 14;
+    color: #00ffff;
+  }
+  .btn-active {
+    padding: 10;
+    background-color: rgba(0, 255, 255, 0.25);
+    border-radius: 8;
+    border-width: 2;
+    border-color: rgba(0, 255, 255, 0.6);
+    width: 80;
+    align-items: center;
+    cursor: pointer;
+  }
+  .divider {
+    width: 280;
+    height: 1;
+    background-color: rgba(0, 255, 255, 0.15);
+    margin-top: 4;
+    margin-bottom: 4;
+  }
+  .controls-title {
+    font-size: 16;
+    color: #ffffff;
+  }
+  .control-item {
+    font-size: 13;
+    color: rgba(180, 200, 230, 0.7);
+  }
+  .btn-back {
+    padding: 10;
+    background-color: rgba(100, 100, 150, 0.1);
+    border-radius: 8;
+    border-width: 1;
+    border-color: rgba(100, 100, 150, 0.3);
+    width: 240;
+    align-items: center;
+    cursor: pointer;
+    margin-top: 6;
+  }
+  .btn-back-text {
+    font-size: 15;
+    color: rgba(180, 180, 220, 0.8);
+  }
+</style>
+<Panel class="root">
+  <div class="title">SETTINGS</div>
+  <div class="label">DIFFICULTY</div>
+  <div class="current" id="current-difficulty">CURRENT: NORMAL</div>
+  <div class="diff-row">
+    <div class="btn" id="btn-easy">
+      <div class="btn-text">EASY</div>
+    </div>
+    <div class="btn-active" id="btn-normal">
+      <div class="btn-text">NORMAL</div>
+    </div>
+    <div class="btn" id="btn-hard">
+      <div class="btn-text">HARD</div>
+    </div>
+  </div>
+  <div class="divider"></div>
+  <div class="controls-title">CONTROLS</div>
+  <div class="control-item">VR: Trigger to throw</div>
+  <div class="control-item">VR: Point at menus to interact</div>
+  <div class="control-item">Browser: Click to throw</div>
+  <div class="control-item">Browser: ESC/P to pause</div>
+  <div class="btn-back" id="btn-back">
+    <div class="btn-back-text">BACK</div>
+  </div>
+</Panel>
