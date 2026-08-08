@@ -37,6 +37,7 @@ export class UISystem extends createSystem({}) {
 	private lastState: GameState = GameState.MENU;
 	private updateTimer = 0;
 	private waveAnnounceTimer = 0;
+	private uiCleanup: (() => void)[] = [];
 
 	init(): void {
 		uiSystemInstance = this;
@@ -261,7 +262,7 @@ export class UISystem extends createSystem({}) {
 		}
 
 		// Hide/show based on VR state
-		this.cleanupFuncs.push(
+		this.uiCleanup.push(
 			this.world.visibilityState.subscribe((state) => {
 				const is2D = state === VisibilityState.NonImmersive;
 				if (xrBtn) {
@@ -340,6 +341,24 @@ export class UISystem extends createSystem({}) {
 				});
 			} else {
 				powerupEl.setProperties({ display: 'none' });
+			}
+		}
+
+		// Charge bar
+		const chargeSectionEl = this.hudPanel.getElementById('charge-section');
+		const chargeBarEl = this.hudPanel.getElementById('charge-bar');
+		if (chargeSectionEl && chargeBarEl) {
+			if (gameState.isCharging) {
+				const barWidth = Math.floor(gameState.chargeLevel * 200);
+				const barColor = gameState.chargeLevel > 0.8
+					? 'rgba(255,68,170,0.9)'
+					: gameState.chargeLevel > 0.5
+						? 'rgba(136,170,255,0.9)'
+						: 'rgba(0,255,255,0.8)';
+				chargeSectionEl.setProperties({ display: 'flex' });
+				chargeBarEl.setProperties({ width: barWidth, backgroundColor: barColor });
+			} else {
+				chargeSectionEl.setProperties({ display: 'none' });
 			}
 		}
 	}

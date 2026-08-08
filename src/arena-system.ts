@@ -80,6 +80,16 @@ export class ArenaSystem extends createSystem({}) {
 		scene.add(damageZoneGroup);
 		systemRefs.damageZoneGroup = damageZoneGroup;
 
+		const floatingTextGroup = new Group();
+		floatingTextGroup.name = 'floating-text';
+		scene.add(floatingTextGroup);
+		systemRefs.floatingTextGroup = floatingTextGroup;
+
+		const icicleGroup = new Group();
+		icicleGroup.name = 'icicles';
+		scene.add(icicleGroup);
+		systemRefs.icicleGroup = icicleGroup;
+
 		// Lighting
 		this.setupLighting(scene);
 

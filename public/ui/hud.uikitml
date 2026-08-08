@@ -77,6 +77,27 @@
     padding: 4;
     border-radius: 4;
   }
+  .charge-section {
+    flex-direction: column;
+    gap: 2;
+    display: none;
+  }
+  .charge-label {
+    font-size: 11;
+    color: rgba(0, 255, 255, 0.7);
+  }
+  .charge-bar-bg {
+    width: 200;
+    height: 6;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 3;
+  }
+  .charge-bar {
+    width: 0;
+    height: 6;
+    background-color: rgba(0, 255, 255, 0.8);
+    border-radius: 3;
+  }
   .wave-announce {
     font-size: 36;
     color: #00ffff;
@@ -103,6 +124,12 @@
     </div>
   </div>
   <div class="combo" id="combo"></div>
+  <div class="charge-section" id="charge-section">
+    <div class="charge-label">CHARGE</div>
+    <div class="charge-bar-bg">
+      <div class="charge-bar" id="charge-bar"></div>
+    </div>
+  </div>
   <div class="wave-announce" id="wave-announce"></div>
   <div class="powerup" id="powerup"></div>
 </Panel>

@@ -14,6 +14,7 @@ import {
 	Vector3,
 	Color,
 	PointLight,
+	PlaneGeometry,
 } from '@iwsdk/core';
 import {
 	gameState,
@@ -30,6 +31,7 @@ import {
 	NEON_PINK,
 	NEON_BLUE,
 	ARENA_RADIUS,
+	HealthBarData,
 } from './game-state.js';
 import { SnowballSystem } from './snowball-system.js';
 
@@ -180,6 +182,27 @@ export class EnemySystem extends createSystem({}) {
 						window.dispatchEvent(new CustomEvent('enemy-throw'));
 					}
 				}
+			}
+
+			// Update health bar
+			if (enemy.healthBar) {
+				const hpPct = Math.max(0, enemy.health / enemy.maxHealth);
+				enemy.healthBar.fill.scale.x = hpPct;
+				enemy.healthBar.fill.position.x = -(1 - hpPct) * 0.3;
+
+				// Color based on health
+				const fillMat = enemy.healthBar.fill.material as MeshBasicMaterial;
+				if (hpPct > 0.5) {
+					fillMat.color.setHex(0x44ff88);
+				} else if (hpPct > 0.25) {
+					fillMat.color.setHex(0xffdd44);
+				} else {
+					fillMat.color.setHex(0xff4444);
+				}
+
+				// Billboard: face camera
+				const camPos = _playerPos;
+				enemy.healthBar.group.lookAt(camPos.x, enemy.healthBar.group.position.y, camPos.z);
 			}
 
 			// Bobbing animation
@@ -378,6 +401,36 @@ export class EnemySystem extends createSystem({}) {
 
 		systemRefs.enemyGroup.add(group);
 
+		// Create health bar for multi-HP enemies
+		let healthBar: HealthBarData | null = null;
+		if (config.health > 1) {
+			const hbGroup = new Group();
+			const hbHeight = (type === EnemyType.BOSS ? 2.3 : 1.8) * config.scale;
+			hbGroup.position.y = hbHeight;
+
+			const bgGeo = new PlaneGeometry(0.65, 0.06);
+			const bgMat = new MeshBasicMaterial({
+				color: 0x111111,
+				transparent: true,
+				opacity: 0.7,
+			});
+			const bg = new Mesh(bgGeo, bgMat);
+			hbGroup.add(bg);
+
+			const fillGeo = new PlaneGeometry(0.6, 0.04);
+			const fillMat = new MeshBasicMaterial({
+				color: 0x44ff88,
+				transparent: true,
+				opacity: 0.9,
+			});
+			const fill = new Mesh(fillGeo, fillMat);
+			fill.position.z = 0.001;
+			hbGroup.add(fill);
+
+			group.add(hbGroup);
+			healthBar = { background: bg, fill, group: hbGroup };
+		}
+
 		enemies.push({
 			group,
 			type,
@@ -393,6 +446,7 @@ export class EnemySystem extends createSystem({}) {
 			throwCount: 0,
 			isCharging: false,
 			chargeTimer: type === EnemyType.BOSS ? 10 : 999,
+			healthBar,
 		});
 	}
 }

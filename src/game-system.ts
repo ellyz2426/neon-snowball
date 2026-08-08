@@ -20,6 +20,8 @@ import {
 	powerUps,
 	activePowerUps,
 	damageZones,
+	floatingTexts,
+	icicles,
 	systemRefs,
 	EnemyType,
 	PowerUpType,
@@ -345,6 +347,20 @@ export class GameSystem extends createSystem({}) {
 			(dz.mesh.material as MeshBasicMaterial).dispose();
 		}
 		damageZones.length = 0;
+
+		// Remove all floating texts
+		for (const ft of floatingTexts) {
+			systemRefs.floatingTextGroup?.remove(ft.group);
+		}
+		floatingTexts.length = 0;
+
+		// Remove all icicles
+		for (const ic of icicles) {
+			systemRefs.icicleGroup?.remove(ic.mesh);
+			ic.mesh.geometry.dispose();
+			(ic.mesh.material as MeshStandardMaterial).dispose();
+		}
+		icicles.length = 0;
 	}
 
 	saveHighScore(): void {

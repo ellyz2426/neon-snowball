@@ -5,8 +5,12 @@ import {
 	createSystem,
 	Mesh,
 	MeshBasicMaterial,
+	MeshStandardMaterial,
 	SphereGeometry,
 	CircleGeometry,
+	ConeGeometry,
+	BoxGeometry,
+	Group,
 	Vector3,
 	Color,
 	DoubleSide,
@@ -17,15 +21,24 @@ import {
 	particles,
 	snowballs,
 	damageZones,
+	floatingTexts,
+	icicles,
+	enemies,
 	systemRefs,
 	particleGeo,
 	ParticleData,
 	DamageZoneData,
+	FloatingTextData,
+	IcicleData,
 	NEON_CYAN,
 	NEON_PINK,
 	NEON_GREEN,
 	NEON_PURPLE,
 	SNOW_WHITE,
+	ARENA_RADIUS,
+	ENEMY_CONFIGS,
+	DIFFICULTY_CONFIGS,
+	EnemyType,
 } from './game-state.js';
 
 const MAX_PARTICLES = 400;
@@ -35,6 +48,8 @@ export class EffectsSystem extends createSystem({}) {
 	private trailTimer = 0;
 	private shakeIntensity = 0;
 	private shakeOriginalPos = new Vector3();
+	private icicleTimer = 0;
+	private icicleInterval = 8; // seconds between icicle drops
 
 	init(): void {
 		// Snowball impact
@@ -43,11 +58,29 @@ export class EffectsSystem extends createSystem({}) {
 			this.spawnImpact(d.x, d.y, d.z, d.isGiant);
 		});
 
-		// Enemy killed
+		// Enemy killed - show score
 		window.addEventListener('enemy-hit', (e: Event) => {
 			const d = (e as CustomEvent).detail;
 			if (d.killed) {
 				this.spawnBurst(0, 1, 0, 20, NEON_CYAN, 0.5);
+				if (d.points) {
+					this.spawnFloatingText(
+						d.x ?? 0,
+						d.y ?? 1.5,
+						d.z ?? 0,
+						`+${d.points}`,
+						d.combo > 3 ? NEON_PINK : NEON_CYAN,
+					);
+					if (d.combo >= 3) {
+						this.spawnFloatingText(
+							d.x ?? 0,
+							(d.y ?? 1.5) + 0.4,
+							d.z ?? 0,
+							`${d.combo}x COMBO`,
+							NEON_PINK,
+						);
+					}
+				}
 			}
 		});
 
@@ -141,6 +174,12 @@ export class EffectsSystem extends createSystem({}) {
 
 		// Damage zones
 		this.updateDamageZones(delta);
+
+		// Floating texts
+		this.updateFloatingTexts(delta);
+
+		// Icicle hazards
+		this.updateIcicles(delta);
 
 		// Screen shake
 		if (this.shakeIntensity > 0 && systemRefs.arenaGroup) {
@@ -287,6 +326,222 @@ export class EffectsSystem extends createSystem({}) {
 				damageZones.splice(i, 1);
 			}
 		}
+	}
+
+	private spawnFloatingText(
+		x: number,
+		y: number,
+		z: number,
+		text: string,
+		color: number,
+	): void {
+		if (!systemRefs.floatingTextGroup) return;
+
+		const group = new Group();
+		group.position.set(x, y, z);
+
+		// Create text using colored boxes as a visual indicator
+		// Since we can't render text in 3D easily, we use a colored quad
+		const bgGeo = new BoxGeometry(0.4 + text.length * 0.04, 0.12, 0.01);
+		const bgMat = new MeshBasicMaterial({
+			color,
+			transparent: true,
+			opacity: 0.9,
+		});
+		const bg = new Mesh(bgGeo, bgMat);
+		group.add(bg);
+
+		// Billboard toward camera
+		const camPos = new Vector3();
+		this.world.camera.getWorldPosition(camPos);
+		group.lookAt(camPos);
+
+		systemRefs.floatingTextGroup.add(group);
+
+		const lifetime = 1.2;
+		floatingTexts.push({
+			group,
+			lifetime,
+			maxLifetime: lifetime,
+			velocity: new Vector3(
+				(Math.random() - 0.5) * 0.3,
+				1.5 + Math.random() * 0.5,
+				(Math.random() - 0.5) * 0.3,
+			),
+		});
+	}
+
+	private updateFloatingTexts(delta: number): void {
+		const camPos = new Vector3();
+		this.world.camera.getWorldPosition(camPos);
+
+		for (let i = floatingTexts.length - 1; i >= 0; i--) {
+			const ft = floatingTexts[i];
+			ft.lifetime -= delta;
+
+			ft.group.position.x += ft.velocity.x * delta;
+			ft.group.position.y += ft.velocity.y * delta;
+			ft.group.position.z += ft.velocity.z * delta;
+
+			// Slow down vertical speed
+			ft.velocity.y *= 0.97;
+
+			// Fade and scale
+			const alpha = Math.max(0, ft.lifetime / ft.maxLifetime);
+			ft.group.scale.setScalar(0.7 + alpha * 0.3);
+
+			// Billboard
+			ft.group.lookAt(camPos);
+
+			// Set opacity
+			ft.group.traverse((child) => {
+				if (child instanceof Mesh) {
+					(child.material as MeshBasicMaterial).opacity = alpha;
+				}
+			});
+
+			if (ft.lifetime <= 0) {
+				systemRefs.floatingTextGroup?.remove(ft.group);
+				ft.group.traverse((child) => {
+					if (child instanceof Mesh) {
+						child.geometry.dispose();
+						(child.material as MeshBasicMaterial).dispose();
+					}
+				});
+				floatingTexts.splice(i, 1);
+			}
+		}
+	}
+
+	private updateIcicles(delta: number): void {
+		if (gameState.state !== GameState.PLAYING) return;
+
+		// Spawn icicles periodically (starts wave 3+)
+		if (gameState.wave >= 3) {
+			this.icicleTimer -= delta;
+			// More frequent in later waves
+			const interval = Math.max(3, this.icicleInterval - gameState.wave * 0.3);
+			if (this.icicleTimer <= 0) {
+				this.icicleTimer = interval;
+				this.spawnIcicle();
+			}
+		}
+
+		// Update existing icicles
+		for (let i = icicles.length - 1; i >= 0; i--) {
+			const ic = icicles[i];
+			ic.lifetime -= delta;
+
+			// Fall with gravity
+			ic.velocity.y -= 12 * delta;
+			ic.mesh.position.x += ic.velocity.x * delta;
+			ic.mesh.position.y += ic.velocity.y * delta;
+			ic.mesh.position.z += ic.velocity.z * delta;
+
+			// Check hit on enemies
+			for (let j = enemies.length - 1; j >= 0; j--) {
+				const enemy = enemies[j];
+				if (enemy.isDying) continue;
+				const dist = ic.mesh.position.distanceTo(enemy.group.position);
+				if (dist < 1.0 && ic.mesh.position.y < 1.5) {
+					enemy.health -= ic.damage;
+					enemy.hitFlashTimer = 0.2;
+					if (enemy.health <= 0) {
+						enemy.isDying = true;
+						enemy.deathTimer = 0.5;
+						gameState.enemiesKilled++;
+						gameState.totalEnemiesKilled++;
+						gameState.enemiesRemaining--;
+
+						const config = ENEMY_CONFIGS[enemy.type];
+						const diffConfig = DIFFICULTY_CONFIGS[gameState.difficulty];
+						const points = Math.floor(config.points * 0.5 * diffConfig.scoreMultiplier);
+						gameState.score += points;
+
+						this.spawnFloatingText(
+							enemy.group.position.x,
+							enemy.group.position.y + 1.5,
+							enemy.group.position.z,
+							`+${points}`,
+							0x88ccff,
+						);
+
+						window.dispatchEvent(new CustomEvent('enemy-hit', {
+							detail: {
+								killed: true,
+								points,
+								combo: 0,
+								x: enemy.group.position.x,
+								y: enemy.group.position.y + 1.5,
+								z: enemy.group.position.z,
+							},
+						}));
+					}
+					this.spawnBurst(ic.mesh.position.x, ic.mesh.position.y, ic.mesh.position.z, 8, 0x88ccff, 0.3);
+					ic.lifetime = 0;
+					break;
+				}
+			}
+
+			// Hit ground
+			if (ic.mesh.position.y < 0) {
+				this.spawnBurst(ic.mesh.position.x, 0.1, ic.mesh.position.z, 6, 0x88ccff, 0.2);
+				ic.lifetime = 0;
+			}
+
+			if (ic.lifetime <= 0 || ic.mesh.position.y < -1) {
+				systemRefs.icicleGroup?.remove(ic.mesh);
+				ic.mesh.geometry.dispose();
+				(ic.mesh.material as MeshStandardMaterial).dispose();
+				icicles.splice(i, 1);
+			}
+		}
+	}
+
+	private spawnIcicle(): void {
+		if (!systemRefs.icicleGroup) return;
+
+		// Drop near a random enemy if possible, otherwise random position
+		let x: number, z: number;
+		if (enemies.length > 0) {
+			const target = enemies[Math.floor(Math.random() * enemies.length)];
+			x = target.group.position.x + (Math.random() - 0.5) * 2;
+			z = target.group.position.z + (Math.random() - 0.5) * 2;
+		} else {
+			const angle = Math.random() * Math.PI * 2;
+			const dist = 3 + Math.random() * (ARENA_RADIUS - 3);
+			x = Math.cos(angle) * dist;
+			z = Math.sin(angle) * dist;
+		}
+
+		// Spawn warning sparkle first (visual telegraph)
+		this.spawnBurst(x, 0.1, z, 4, 0x88ccff, 0.1);
+
+		const geo = new ConeGeometry(0.08, 0.5, 6);
+		const mat = new MeshStandardMaterial({
+			color: 0x88ccff,
+			roughness: 0.1,
+			metalness: 0.5,
+			emissive: new Color(0x4488ff),
+			emissiveIntensity: 0.5,
+			transparent: true,
+			opacity: 0.85,
+		});
+		const mesh = new Mesh(geo, mat);
+		mesh.position.set(x, 12 + Math.random() * 3, z);
+		mesh.rotation.x = Math.PI; // Point downward
+
+		systemRefs.icicleGroup.add(mesh);
+
+		icicles.push({
+			mesh,
+			velocity: new Vector3(0, -2, 0),
+			lifetime: 5,
+			damage: 2,
+		});
+
+		// Spawn audio event
+		window.dispatchEvent(new CustomEvent('icicle-drop'));
 	}
 
 	private spawnImpact(x: number, y: number, z: number, isGiant: boolean): void {

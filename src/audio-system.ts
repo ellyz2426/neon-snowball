@@ -32,6 +32,7 @@ export class AudioSystem extends createSystem({}) {
 		window.addEventListener('wave-start', () => this.playWaveStart());
 		window.addEventListener('wave-complete', () => this.playWaveComplete());
 		window.addEventListener('game-over', () => this.playGameOver());
+		window.addEventListener('icicle-drop', () => this.playIcicleDrop());
 
 		// Init audio on first interaction
 		const initAudio = () => {
@@ -193,6 +194,13 @@ export class AudioSystem extends createSystem({}) {
 		this.playNote(440, 0.3, 'sawtooth', 0.1);
 		setTimeout(() => this.playNote(330, 0.3, 'sawtooth', 0.1), 250);
 		setTimeout(() => this.playNote(220, 0.5, 'sawtooth', 0.12), 500);
+	}
+
+	private playIcicleDrop(): void {
+		// Crystal shatter / tinkling ice sound
+		this.playNote(2400, 0.08, 'sine', 0.06);
+		setTimeout(() => this.playNote(1800, 0.1, 'sine', 0.05), 50);
+		setTimeout(() => this.playNote(3200, 0.06, 'sine', 0.04), 100);
 	}
 
 	update(): void {

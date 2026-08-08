@@ -34,6 +34,9 @@ const THROW_COOLDOWN = 0.35;
 const RAPID_FIRE_COOLDOWN = 0.1;
 const ENEMY_HIT_RADIUS = 0.6;
 const PLAYER_HIT_RADIUS = 0.8;
+const MAX_CHARGE_TIME = 1.5;
+const CHARGE_SPEED_BONUS = 8;
+const CHARGE_DAMAGE_BONUS = 2;
 
 const _dir = new Vector3();
 const _pos = new Vector3();
@@ -41,23 +44,56 @@ const _tmp = new Vector3();
 
 export class SnowballSystem extends createSystem({}) {
 	private throwCooldown = 0;
-	private wasMouseDown = false;
+	private isMouseDown = false;
+	private chargeTime = 0;
+	private chargeMesh: Mesh | null = null;
 
 	init(): void {
 		// Mouse / touch for browser mode
 		const canvas = this.world.renderer.domElement;
 		canvas.addEventListener('mousedown', () => {
 			if (gameState.state === GameState.PLAYING && this.throwCooldown <= 0) {
-				this.throwSnowball();
-				this.throwCooldown = gameState.rapidFireActive ? RAPID_FIRE_COOLDOWN : THROW_COOLDOWN;
+				this.startCharge();
+			}
+		});
+		canvas.addEventListener('mouseup', () => {
+			if (this.isMouseDown) {
+				this.releaseCharge();
 			}
 		});
 		canvas.addEventListener('touchstart', () => {
 			if (gameState.state === GameState.PLAYING && this.throwCooldown <= 0) {
-				this.throwSnowball();
-				this.throwCooldown = gameState.rapidFireActive ? RAPID_FIRE_COOLDOWN : THROW_COOLDOWN;
+				this.startCharge();
 			}
 		});
+		canvas.addEventListener('touchend', () => {
+			if (this.isMouseDown) {
+				this.releaseCharge();
+			}
+		});
+	}
+
+	private startCharge(): void {
+		this.isMouseDown = true;
+		this.chargeTime = 0;
+		gameState.isCharging = true;
+		gameState.chargeLevel = 0;
+	}
+
+	private releaseCharge(): void {
+		this.isMouseDown = false;
+		const chargeRatio = Math.min(this.chargeTime / MAX_CHARGE_TIME, 1.0);
+		this.throwSnowball(chargeRatio);
+		this.throwCooldown = gameState.rapidFireActive ? RAPID_FIRE_COOLDOWN : THROW_COOLDOWN;
+		gameState.isCharging = false;
+		gameState.chargeLevel = 0;
+		// Remove charge indicator
+		if (this.chargeMesh) {
+			this.world.scene.remove(this.chargeMesh);
+			this.chargeMesh.geometry.dispose();
+			(this.chargeMesh.material as MeshStandardMaterial).dispose();
+			this.chargeMesh = null;
+		}
 	}
 
 	update(delta: number): void {
@@ -65,13 +101,24 @@ export class SnowballSystem extends createSystem({}) {
 
 		this.throwCooldown -= delta;
 
+		// Charging logic
+		if (this.isMouseDown) {
+			this.chargeTime += delta;
+			const chargeRatio = Math.min(this.chargeTime / MAX_CHARGE_TIME, 1.0);
+			gameState.chargeLevel = chargeRatio;
+			this.updateChargeIndicator(chargeRatio);
+		}
+
 		// XR: check trigger via input actions
 		const actions = this.world.input?.actions;
 		if (actions) {
 			const triggerDown = actions.getButtonDown('interaction.select');
+			const triggerUp = actions.getButtonUp('interaction.select');
 			if (triggerDown && this.throwCooldown <= 0) {
-				this.throwSnowball();
-				this.throwCooldown = gameState.rapidFireActive ? RAPID_FIRE_COOLDOWN : THROW_COOLDOWN;
+				this.startCharge();
+			}
+			if (triggerUp && this.isMouseDown) {
+				this.releaseCharge();
 			}
 		}
 
@@ -79,7 +126,46 @@ export class SnowballSystem extends createSystem({}) {
 		this.updateSnowballs(delta);
 	}
 
-	private throwSnowball(): void {
+	private updateChargeIndicator(chargeRatio: number): void {
+		const camera = this.world.camera;
+		camera.getWorldDirection(_dir);
+		camera.getWorldPosition(_pos);
+
+		// Show/update charge indicator sphere
+		const indicatorPos = _pos.clone().add(_dir.clone().multiplyScalar(0.8));
+		const size = 0.05 + chargeRatio * 0.15;
+		const glowIntensity = 0.3 + chargeRatio * 0.7;
+
+		if (!this.chargeMesh) {
+			const geo = new SphereGeometry(1, 10, 8);
+			const mat = new MeshStandardMaterial({
+				color: 0xffffff,
+				emissive: new Color(NEON_CYAN),
+				emissiveIntensity: glowIntensity,
+				transparent: true,
+				opacity: 0.6 + chargeRatio * 0.3,
+			});
+			this.chargeMesh = new Mesh(geo, mat);
+			this.world.scene.add(this.chargeMesh);
+		}
+
+		this.chargeMesh.position.copy(indicatorPos);
+		this.chargeMesh.scale.setScalar(size);
+		const mat = this.chargeMesh.material as MeshStandardMaterial;
+		mat.emissiveIntensity = glowIntensity;
+		mat.opacity = 0.6 + chargeRatio * 0.3;
+
+		// Color shifts from cyan to pink as charge increases
+		if (chargeRatio > 0.8) {
+			mat.emissive.setHex(NEON_PINK);
+		} else if (chargeRatio > 0.5) {
+			mat.emissive.setHex(0x88aaff);
+		} else {
+			mat.emissive.setHex(NEON_CYAN);
+		}
+	}
+
+	private throwSnowball(chargeRatio: number = 0): void {
 		if (!systemRefs.snowballGroup) return;
 
 		// Get camera direction
@@ -88,29 +174,34 @@ export class SnowballSystem extends createSystem({}) {
 		camera.getWorldPosition(_pos);
 
 		const isGiant = gameState.giantSnowballActive;
-		const geo = isGiant ? giantSnowballGeo : snowballGeo;
+		const isCharged = chargeRatio > 0.3;
+		const geo = isGiant ? giantSnowballGeo : (isCharged ? new SphereGeometry(0.12 + chargeRatio * 0.1, 12, 8) : snowballGeo);
 
+		const chargeColor = chargeRatio > 0.8 ? NEON_PINK : chargeRatio > 0.5 ? 0x88aaff : NEON_CYAN;
 		const mat = new MeshStandardMaterial({
 			color: 0xffffff,
 			roughness: 0.4,
 			metalness: 0.1,
-			emissive: new Color(isGiant ? NEON_PINK : NEON_CYAN),
-			emissiveIntensity: 0.4,
+			emissive: new Color(isGiant ? NEON_PINK : chargeColor),
+			emissiveIntensity: 0.4 + chargeRatio * 0.4,
 		});
 
 		const mesh = new Mesh(geo, mat);
 		mesh.position.copy(_pos).add(_dir.clone().multiplyScalar(0.5));
 
-		// Add slight upward arc
-		const velocity = _dir.clone().multiplyScalar(THROW_SPEED);
+		// Add slight upward arc + charge speed bonus
+		const speed = THROW_SPEED + chargeRatio * CHARGE_SPEED_BONUS;
+		const velocity = _dir.clone().multiplyScalar(speed);
 		velocity.y += 2;
 
 		systemRefs.snowballGroup.add(mesh);
 
+		const damage = (isGiant ? 3 : 1) + Math.floor(chargeRatio * CHARGE_DAMAGE_BONUS);
+
 		snowballs.push({
 			mesh,
 			velocity,
-			damage: isGiant ? 3 : 1,
+			damage,
 			lifetime: SNOWBALL_LIFETIME,
 			isPlayerOwned: true,
 			isGiant,
@@ -119,7 +210,7 @@ export class SnowballSystem extends createSystem({}) {
 		gameState.totalThrows++;
 
 		// Fire event for audio
-		window.dispatchEvent(new CustomEvent('snowball-throw', { detail: { isGiant } }));
+		window.dispatchEvent(new CustomEvent('snowball-throw', { detail: { isGiant, charged: isCharged } }));
 	}
 
 	/** Called by EnemySystem to create enemy snowballs */
@@ -260,11 +351,23 @@ export class SnowballSystem extends createSystem({}) {
 							}
 
 							window.dispatchEvent(new CustomEvent('enemy-hit', {
-								detail: { killed: true, points, combo: gameState.combo },
+								detail: {
+									killed: true,
+									points,
+									combo: gameState.combo,
+									x: enemy.group.position.x,
+									y: enemy.group.position.y + 1.5,
+									z: enemy.group.position.z,
+								},
 							}));
 						} else {
 							window.dispatchEvent(new CustomEvent('enemy-hit', {
-								detail: { killed: false },
+								detail: {
+									killed: false,
+									x: enemy.group.position.x,
+									y: enemy.group.position.y + 1.0,
+									z: enemy.group.position.z,
+								},
 							}));
 						}
 

@@ -71,6 +71,7 @@ export interface EnemyData {
 	throwCount: number;
 	isCharging: boolean;
 	chargeTimer: number;
+	healthBar: HealthBarData | null;
 }
 
 // ── Power-up data ───────────────────────────────────────────────
@@ -100,6 +101,29 @@ export interface DamageZoneData {
 	mesh: Mesh;
 	lifetime: number;
 	playerInZoneTime: number;
+}
+
+// ── Floating text data ──────────────────────────────────────────
+export interface FloatingTextData {
+	group: Group;
+	lifetime: number;
+	maxLifetime: number;
+	velocity: Vector3;
+}
+
+// ── Icicle data ─────────────────────────────────────────────────
+export interface IcicleData {
+	mesh: Mesh;
+	velocity: Vector3;
+	lifetime: number;
+	damage: number;
+}
+
+// ── Health bar data ─────────────────────────────────────────────
+export interface HealthBarData {
+	background: Mesh;
+	fill: Mesh;
+	group: Group;
 }
 
 // ── Game config per difficulty ───────────────────────────────────
@@ -241,6 +265,8 @@ export const gameState = {
 	totalThrows: 0,
 	totalHits: 0,
 	playStartTime: 0,
+	chargeLevel: 0,
+	isCharging: false,
 };
 
 // ── Shared object pools ─────────────────────────────────────────
@@ -250,6 +276,8 @@ export const powerUps: PowerUpData[] = [];
 export const activePowerUps: ActivePowerUp[] = [];
 export const particles: ParticleData[] = [];
 export const damageZones: DamageZoneData[] = [];
+export const floatingTexts: FloatingTextData[] = [];
+export const icicles: IcicleData[] = [];
 
 // ── System references ───────────────────────────────────────────
 export const systemRefs: {
@@ -260,6 +288,8 @@ export const systemRefs: {
 	particleGroup: Group | null;
 	powerUpGroup: Group | null;
 	damageZoneGroup: Group | null;
+	floatingTextGroup: Group | null;
+	icicleGroup: Group | null;
 } = {
 	scene: null,
 	arenaGroup: null,
@@ -268,6 +298,8 @@ export const systemRefs: {
 	particleGroup: null,
 	powerUpGroup: null,
 	damageZoneGroup: null,
+	floatingTextGroup: null,
+	icicleGroup: null,
 };
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -292,6 +324,8 @@ export function resetGameState(): void {
 	gameState.totalThrows = 0;
 	gameState.totalHits = 0;
 	gameState.playStartTime = Date.now();
+	gameState.chargeLevel = 0;
+	gameState.isCharging = false;
 }
 
 export function getWaveEnemyCount(wave: number): number {
