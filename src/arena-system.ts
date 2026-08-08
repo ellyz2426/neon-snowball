@@ -55,6 +55,9 @@ export class ArenaSystem extends createSystem({}) {
 	private starField: Mesh[] = [];
 	private windDrifts: { mesh: Mesh; vel: Vector3; life: number; maxLife: number }[] = [];
 	private campfires: { light: PointLight; flames: Mesh[]; baseY: number }[] = [];
+	private skyDome: Mesh | null = null;
+	private auroraFlashTimer = 0;
+	private bossSpawnLightTimer = 0;
 
 	init(): void {
 		const scene = this.world.scene;
@@ -106,6 +109,16 @@ export class ArenaSystem extends createSystem({}) {
 		scene.add(icePatchGroup);
 		systemRefs.icePatchGroup = icePatchGroup;
 
+		const allyGroup = new Group();
+		allyGroup.name = 'allies';
+		scene.add(allyGroup);
+		systemRefs.allyGroup = allyGroup;
+
+		const burningGroup = new Group();
+		burningGroup.name = 'burning-ground';
+		scene.add(burningGroup);
+		systemRefs.burningGroup = burningGroup;
+
 		// Lighting
 		this.setupLighting(scene);
 
@@ -147,6 +160,22 @@ export class ArenaSystem extends createSystem({}) {
 
 		// Ground-level wind drift particles
 		this.initWindDrifts(scene);
+
+		// Wave transition effects
+		window.addEventListener('wave-complete', () => {
+			this.auroraFlashTimer = 1.5; // Aurora flash for 1.5s
+		});
+
+		window.addEventListener('wave-start', (e: Event) => {
+			const detail = (e as CustomEvent).detail;
+			if (detail?.wave > 0 && detail.wave % 5 === 0) {
+				// Boss wave: dramatic lighting pulse + screen shake
+				this.bossSpawnLightTimer = 2.0;
+				window.dispatchEvent(new CustomEvent('screen-shake', {
+					detail: { intensity: 0.5 },
+				}));
+			}
+		});
 	}
 
 	private setupLighting(scene: Object3D): void {
@@ -541,6 +570,20 @@ export class ArenaSystem extends createSystem({}) {
 
 		const weather = gameState.weather;
 
+		// ── Day/Night cycle progression ──
+		if (gameState.state === GameState.PLAYING || gameState.state === GameState.WAVE_COMPLETE) {
+			// Cycle speed: full cycle every ~120 seconds of gameplay
+			const cycleSpeed = 0.008;
+			gameState.dayNightPhase += gameState.dayNightDirection * cycleSpeed * delta;
+			if (gameState.dayNightPhase >= 1.0) {
+				gameState.dayNightPhase = 1.0;
+				gameState.dayNightDirection = -1;
+			} else if (gameState.dayNightPhase <= 0.0) {
+				gameState.dayNightPhase = 0.0;
+				gameState.dayNightDirection = 1;
+			}
+		}
+
 		// Check if boss wave for snowstorm effect
 		const isStorm =
 			gameState.wave > 0 &&
@@ -625,6 +668,45 @@ export class ArenaSystem extends createSystem({}) {
 
 		// Animate campfires
 		this.updateCampfires();
+
+		// ── Aurora flash on wave complete ──
+		if (this.auroraFlashTimer > 0) {
+			this.auroraFlashTimer -= delta;
+			const flashIntensity = Math.min(1, this.auroraFlashTimer / 0.3);
+			for (const curtain of this.auroraCurtains) {
+				(curtain.material as MeshBasicMaterial).opacity = 0.3 + flashIntensity * 0.5;
+			}
+			for (const light of this.auroraLights) {
+				light.intensity = 0.5 + flashIntensity * 1.0;
+			}
+			// Flash stars brighter
+			for (const star of this.starField) {
+				(star.material as MeshBasicMaterial).opacity = 0.5 + flashIntensity * 0.5;
+			}
+		}
+
+		// ── Boss spawn dramatic lighting ──
+		if (this.bossSpawnLightTimer > 0) {
+			this.bossSpawnLightTimer -= delta;
+			const bossFlash = Math.sin(this.bossSpawnLightTimer * 8) * 0.5 + 0.5;
+			if (this.moonLight) {
+				this.moonLight.color.setHex(bossFlash > 0.5 ? 0xff4488 : 0x8899cc);
+				this.moonLight.intensity = 0.6 + bossFlash * 0.8;
+			}
+			if (this.bossSpawnLightTimer <= 0 && this.moonLight) {
+				this.moonLight.color.setHex(0x8899cc);
+			}
+		}
+
+		// ── Update sky dome color for day/night ──
+		if (this.skyDome) {
+			const phase = gameState.dayNightPhase;
+			// Interpolate: night (0x050a18) → dawn/dusk (0x152040) → day (0x1a2848)
+			const r = 0.02 + phase * 0.08;
+			const g = 0.04 + phase * 0.10;
+			const b = 0.09 + phase * 0.14;
+			(this.skyDome.material as MeshBasicMaterial).color.setRGB(r, g, b);
+		}
 	}
 
 	private buildSkyDome(scene: Object3D): void {
@@ -662,6 +744,7 @@ export class ArenaSystem extends createSystem({}) {
 		const sky = new Mesh(skyGeo, skyMat);
 		sky.position.y = -1;
 		scene.add(sky);
+		this.skyDome = sky;
 	}
 
 	private buildAuroraCurtains(scene: Object3D): void {
@@ -1024,28 +1107,39 @@ export class ArenaSystem extends createSystem({}) {
 
 		if (!this.ambientLight || !this.moonLight) return;
 
+		// Day/night cycle influence on base lighting
+		const dayPhase = gameState.dayNightPhase; // 0=night, 1=day
+
 		let targetAmbient: number, targetMoon: number;
 		if (isStorm) {
-			targetAmbient = 0.25;
-			targetMoon = 0.3;
+			targetAmbient = 0.15 + dayPhase * 0.1;
+			targetMoon = 0.2 + dayPhase * 0.1;
 		} else {
 			switch (weather) {
 				case WeatherType.BLIZZARD:
-					targetAmbient = 0.28; targetMoon = 0.35;
+					targetAmbient = 0.18 + dayPhase * 0.12; targetMoon = 0.25 + dayPhase * 0.12;
 					break;
 				case WeatherType.HEAVY_SNOW:
-					targetAmbient = 0.32; targetMoon = 0.45;
+					targetAmbient = 0.25 + dayPhase * 0.12; targetMoon = 0.35 + dayPhase * 0.15;
 					break;
 				case WeatherType.LIGHT_SNOW:
-					targetAmbient = 0.38; targetMoon = 0.55;
+					targetAmbient = 0.3 + dayPhase * 0.15; targetMoon = 0.45 + dayPhase * 0.15;
 					break;
 				default:
-					targetAmbient = 0.4; targetMoon = 0.6;
+					targetAmbient = 0.3 + dayPhase * 0.2; targetMoon = 0.5 + dayPhase * 0.2;
 					break;
 			}
 		}
 
 		this.ambientLight.intensity += (targetAmbient - this.ambientLight.intensity) * delta * 1.5;
 		this.moonLight.intensity += (targetMoon - this.moonLight.intensity) * delta * 1.5;
+
+		// Moon color shifts with day/night: bluish at night, warmer at dawn/dusk
+		if (this.bossSpawnLightTimer <= 0) {
+			const moonR = 0.53 + dayPhase * 0.2;
+			const moonG = 0.6 + dayPhase * 0.15;
+			const moonB = 0.8 - dayPhase * 0.1;
+			this.moonLight.color.setRGB(moonR, moonG, moonB);
+		}
 	}
 }

@@ -3,36 +3,58 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 30;
-    gap: 12;
+    padding: 24;
+    gap: 8;
     background-color: rgba(0, 8, 25, 0.94);
     border-radius: 16;
     border-width: 2;
     border-color: rgba(0, 255, 255, 0.3);
-    width: 360;
+    width: 380;
   }
   .title {
-    font-size: 30;
+    font-size: 28;
     color: #ffffff;
-    margin-bottom: 4;
+    margin-bottom: 2;
   }
   .stat {
-    font-size: 16;
+    font-size: 14;
     color: rgba(200, 220, 255, 0.85);
   }
+  .stat-small {
+    font-size: 12;
+    color: rgba(170, 190, 220, 0.7);
+  }
   .score {
-    font-size: 24;
+    font-size: 22;
     color: #00ffff;
   }
   .divider {
-    width: 280;
+    width: 300;
     height: 1;
     background-color: rgba(0, 255, 255, 0.2);
-    margin-top: 4;
-    margin-bottom: 4;
+    margin-top: 3;
+    margin-bottom: 3;
+  }
+  .section-title {
+    font-size: 13;
+    color: rgba(0, 255, 255, 0.6);
+    margin-top: 2;
+  }
+  .type-row {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 280;
+  }
+  .type-name {
+    font-size: 12;
+    color: rgba(200, 200, 255, 0.7);
+  }
+  .type-count {
+    font-size: 12;
+    color: rgba(200, 220, 255, 0.9);
   }
   .btn {
-    padding: 12;
+    padding: 10;
     background-color: rgba(0, 255, 255, 0.12);
     border-radius: 8;
     border-width: 1;
@@ -40,13 +62,14 @@
     width: 260;
     align-items: center;
     cursor: pointer;
+    margin-top: 2;
   }
   .btn-text {
-    font-size: 17;
+    font-size: 16;
     color: #00ffff;
   }
   .btn-secondary {
-    padding: 10;
+    padding: 8;
     background-color: rgba(100, 100, 150, 0.1);
     border-radius: 8;
     border-width: 1;
@@ -56,7 +79,7 @@
     cursor: pointer;
   }
   .btn-secondary-text {
-    font-size: 15;
+    font-size: 14;
     color: rgba(180, 180, 220, 0.8);
   }
 </style>
@@ -64,13 +87,39 @@
   <div class="title" id="title">WAVE COMPLETE!</div>
   <div class="score" id="score">SCORE: 0</div>
   <div class="stat" id="wave">WAVE 1 CLEARED</div>
-  <div class="stat" id="max-combo">MAX COMBO: 0x</div>
+  <div class="divider"></div>
+  <div class="stat" id="max-combo">BEST COMBO: 0x</div>
+  <div class="stat" id="accuracy">ACCURACY: 0%</div>
   <div class="stat" id="kills">ENEMIES DEFEATED: 0</div>
   <div class="divider"></div>
-  <div class="stat" id="throws">THROWS: 0</div>
-  <div class="stat" id="accuracy">ACCURACY: 0%</div>
-  <div class="stat" id="play-time">TIME: 0:00</div>
+  <div class="section-title">KILLS BY TYPE</div>
+  <div class="type-row" id="kills-basic">
+    <div class="type-name">Basic</div>
+    <div class="type-count" id="kills-basic-count">0</div>
+  </div>
+  <div class="type-row" id="kills-speedy">
+    <div class="type-name">Speedy</div>
+    <div class="type-count" id="kills-speedy-count">0</div>
+  </div>
+  <div class="type-row" id="kills-tank">
+    <div class="type-name">Tank</div>
+    <div class="type-count" id="kills-tank-count">0</div>
+  </div>
+  <div class="type-row" id="kills-bomber">
+    <div class="type-name">Bomber</div>
+    <div class="type-count" id="kills-bomber-count">0</div>
+  </div>
+  <div class="type-row" id="kills-yeti">
+    <div class="type-name">Yeti</div>
+    <div class="type-count" id="kills-yeti-count">0</div>
+  </div>
+  <div class="type-row" id="kills-boss">
+    <div class="type-name">Boss</div>
+    <div class="type-count" id="kills-boss-count">0</div>
+  </div>
   <div class="divider"></div>
+  <div class="stat" id="throws">THROWS: 0</div>
+  <div class="stat" id="play-time">TIME: 0:00</div>
   <div class="btn" id="btn-continue">
     <div class="btn-text" id="btn-continue-text">NEXT WAVE</div>
   </div>

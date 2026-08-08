@@ -13,7 +13,9 @@ import {
 	activePowerUps,
 	PowerUpType,
 	WeatherType,
+	EnemyType,
 	forts,
+	snowmanAllies,
 } from './game-state.js';
 import { GameSystem } from './game-system.js';
 
@@ -390,8 +392,10 @@ export class UISystem extends createSystem({}) {
 				return '░';
 			}).join('');
 			const aliveCount = forts.filter(f => !f.isDestroyed).length;
+			const allyCount = snowmanAllies.filter(a => a.throwsRemaining > 0).length;
+			const allyStr = allyCount > 0 ? ` ⛄${allyCount}` : '';
 			fortEl.setProperties({
-				text: `🏰 FORTS: ${fortBars} (${aliveCount}/${forts.length})`,
+				text: `🏰 FORTS: ${fortBars} (${aliveCount}/${forts.length})${allyStr}`,
 			});
 		}
 	}
@@ -422,7 +426,7 @@ export class UISystem extends createSystem({}) {
 			});
 		}
 		if (comboEl) {
-			comboEl.setProperties({ text: `MAX COMBO: ${gameState.maxCombo}x` });
+			comboEl.setProperties({ text: `BEST COMBO: ${gameState.maxCombo}x` });
 		}
 		if (killsEl) {
 			killsEl.setProperties({
@@ -430,14 +434,8 @@ export class UISystem extends createSystem({}) {
 			});
 		}
 
-		// Statistics
-		const throwsEl = this.resultsPanel.getElementById('throws');
+		// Accuracy
 		const accuracyEl = this.resultsPanel.getElementById('accuracy');
-		const timeEl = this.resultsPanel.getElementById('play-time');
-
-		if (throwsEl) {
-			throwsEl.setProperties({ text: `THROWS: ${gameState.totalThrows}` });
-		}
 		if (accuracyEl) {
 			const accuracy =
 				gameState.totalThrows > 0
@@ -445,6 +443,15 @@ export class UISystem extends createSystem({}) {
 					: 0;
 			accuracyEl.setProperties({ text: `ACCURACY: ${accuracy}%` });
 		}
+
+		// Throws
+		const throwsEl = this.resultsPanel.getElementById('throws');
+		if (throwsEl) {
+			throwsEl.setProperties({ text: `THROWS: ${gameState.totalThrows}` });
+		}
+
+		// Play time
+		const timeEl = this.resultsPanel.getElementById('play-time');
 		if (timeEl) {
 			const elapsed = Math.floor((Date.now() - gameState.playStartTime) / 1000);
 			const mins = Math.floor(elapsed / 60);
@@ -452,6 +459,29 @@ export class UISystem extends createSystem({}) {
 			timeEl.setProperties({
 				text: `TIME: ${mins}:${secs.toString().padStart(2, '0')}`,
 			});
+		}
+
+		// Kills by type breakdown
+		const typeNames: [string, string][] = [
+			['BASIC', 'kills-basic-count'],
+			['SPEEDY', 'kills-speedy-count'],
+			['TANK', 'kills-tank-count'],
+			['BOMBER', 'kills-bomber-count'],
+			['YETI', 'kills-yeti-count'],
+			['BOSS', 'kills-boss-count'],
+		];
+		for (const [typeName, elementId] of typeNames) {
+			const el = this.resultsPanel.getElementById(elementId);
+			if (el) {
+				const count = gameState.killsByType[typeName] || 0;
+				el.setProperties({ text: `${count}` });
+			}
+			// Hide rows with 0 kills for cleaner display
+			const rowEl = this.resultsPanel.getElementById(`kills-${typeName.toLowerCase()}`);
+			if (rowEl) {
+				const count = gameState.killsByType[typeName] || 0;
+				rowEl.setProperties({ display: count > 0 ? 'flex' : 'none' });
+			}
 		}
 
 		if (continueBtn) {

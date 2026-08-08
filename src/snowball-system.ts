@@ -345,6 +345,41 @@ export class SnowballSystem extends createSystem({}) {
 		});
 	}
 
+	/** Called by GameSystem for snowman ally snowballs */
+	static createAllySnowball(origin: Vector3, targetPos: Vector3): void {
+		if (!systemRefs.snowballGroup) return;
+
+		const dir = _tmp.copy(targetPos).sub(origin).normalize();
+		const speed = 14;
+
+		const geo = snowballGeo;
+		const mat = new MeshStandardMaterial({
+			color: 0xccffcc,
+			roughness: 0.4,
+			emissive: new Color(NEON_CYAN),
+			emissiveIntensity: 0.5,
+		});
+
+		const mesh = new Mesh(geo, mat);
+		mesh.position.copy(origin);
+
+		const velocity = dir.clone().multiplyScalar(speed);
+		const dist = origin.distanceTo(targetPos);
+		velocity.y += dist * 0.3;
+
+		systemRefs.snowballGroup.add(mesh);
+
+		snowballs.push({
+			mesh,
+			velocity,
+			damage: 1,
+			lifetime: SNOWBALL_LIFETIME,
+			isPlayerOwned: true, // Counts as player-side
+			isGiant: false,
+			element: 'normal',
+		});
+	}
+
 	private updateSnowballs(delta: number): void {
 		const playerPos = new Vector3();
 		this.world.camera.getWorldPosition(playerPos);
@@ -452,6 +487,16 @@ export class SnowballSystem extends createSystem({}) {
 							gameState.enemiesKilled++;
 							gameState.totalEnemiesKilled++;
 							gameState.enemiesRemaining--;
+
+							// Track kills by enemy type
+							gameState.killsByType[enemy.type] = (gameState.killsByType[enemy.type] || 0) + 1;
+
+							// Bomber death: leave burning ground
+							if (enemy.type === EnemyType.BOMBER) {
+								window.dispatchEvent(new CustomEvent('bomber-death-fire', {
+									detail: { x: enemy.group.position.x, z: enemy.group.position.z },
+								}));
+							}
 
 							// Scoring
 							const config = ENEMY_CONFIGS[enemy.type];

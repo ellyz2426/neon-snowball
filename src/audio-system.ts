@@ -53,6 +53,11 @@ export class AudioSystem extends createSystem({}) {
 		window.addEventListener('fort-hit', () => this.playFortHit());
 		window.addEventListener('fort-destroyed', () => this.playFortDestroyed());
 
+		// New Round 9 audio events
+		window.addEventListener('ally-throw', () => this.playAllyThrow());
+		window.addEventListener('ally-spawned', () => this.playAllySpawned());
+		window.addEventListener('burning-ground-create', () => this.playBurningGround());
+
 		// Init audio on first interaction
 		const initAudio = () => {
 			if (this.initialized) return;
@@ -308,6 +313,26 @@ export class AudioSystem extends createSystem({}) {
 		this.playNote(100, 0.4, 'sawtooth', 0.12);
 		setTimeout(() => this.playNoise(0.3, 600, 0.1), 150);
 		setTimeout(() => this.playNote(80, 0.3, 'sine', 0.08), 200);
+	}
+
+	private playAllyThrow(): void {
+		// Lighter, friendly whoosh
+		this.playNoise(0.18, 1400, 0.08);
+		this.playNote(600, 0.12, 'sine', 0.06);
+	}
+
+	private playAllySpawned(): void {
+		// Cheerful chime — snowman built
+		this.playNote(660, 0.1, 'sine', 0.08);
+		setTimeout(() => this.playNote(880, 0.12, 'sine', 0.08), 100);
+		setTimeout(() => this.playNote(1100, 0.15, 'sine', 0.1), 200);
+	}
+
+	private playBurningGround(): void {
+		// Fire ignition crackle
+		this.playNoise(0.4, 350, 0.14);
+		this.playNote(180, 0.25, 'sawtooth', 0.08);
+		setTimeout(() => this.playNoise(0.2, 500, 0.08), 150);
 	}
 
 	update(): void {

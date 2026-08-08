@@ -25,6 +25,7 @@ import {
 	floatingTexts,
 	icicles,
 	icePatches,
+	burningGrounds,
 	enemies,
 	systemRefs,
 	particleGeo,
@@ -33,6 +34,7 @@ import {
 	FloatingTextData,
 	IcicleData,
 	IcePatchData,
+	BurningGroundData,
 	NEON_CYAN,
 	NEON_PINK,
 	NEON_GREEN,
@@ -166,13 +168,30 @@ export class EffectsSystem extends createSystem({}) {
 			}
 		});
 
-		// Yeti boulder creates ice patch
+		// Yeti boulder creates ice patch — LARGER patches
 		window.addEventListener('yeti-boulder', (e: Event) => {
 			const d = (e as CustomEvent).detail;
-			// Delayed ice patch creation (boulder needs to land)
+			// Delayed ice patch creation (boulder needs to land) — larger radius
 			setTimeout(() => {
-				this.createIcePatch(d.x, d.z);
+				this.createIcePatch(d.x, d.z, 2.5 + Math.random() * 1.0); // Larger patches
 			}, 800);
+		});
+
+		// Bomber death leaves burning ground
+		window.addEventListener('bomber-death-fire', (e: Event) => {
+			const d = (e as CustomEvent).detail;
+			this.createBurningGround(d.x, d.z);
+		});
+
+		// Wave complete: aurora particle burst
+		window.addEventListener('wave-complete', () => {
+			const cam = this.world.camera;
+			const pos = new Vector3();
+			cam.getWorldPosition(pos);
+			// Scatter green/purple particles at sky level
+			this.spawnBurst(pos.x, 8, pos.z, 25, 0x00ff88, 2.0);
+			this.spawnBurst(pos.x + 3, 10, pos.z - 2, 15, 0x8844ff, 1.5);
+			this.spawnBurst(pos.x - 3, 9, pos.z + 2, 15, 0x00ffcc, 1.8);
 		});
 
 		// Fort hit — snow debris burst
@@ -626,7 +645,7 @@ export class EffectsSystem extends createSystem({}) {
 		window.dispatchEvent(new CustomEvent('icicle-drop'));
 	}
 
-	private createIcePatch(x: number, z: number): void {
+	private createIcePatch(x: number, z: number, forceRadius?: number): void {
 		if (!systemRefs.icePatchGroup) return;
 		if (icePatches.length >= 6) {
 			// Remove oldest patch
@@ -636,7 +655,7 @@ export class EffectsSystem extends createSystem({}) {
 			(old.mesh.material as MeshBasicMaterial).dispose();
 		}
 
-		const radius = 1.5 + Math.random() * 0.5;
+		const radius = forceRadius ?? (1.5 + Math.random() * 0.5);
 		const geo = new CircleGeometry(radius, 24);
 		const mat = new MeshBasicMaterial({
 			color: 0x88ccff,
@@ -654,6 +673,38 @@ export class EffectsSystem extends createSystem({}) {
 		// Sparkle effect
 		this.spawnBurst(x, 0.1, z, 8, 0x88ccff, 0.3);
 		window.dispatchEvent(new CustomEvent('ice-patch-create'));
+	}
+
+	private createBurningGround(x: number, z: number): void {
+		if (!systemRefs.burningGroup) return;
+
+		// Limit active burning grounds
+		if (burningGrounds.length >= 4) {
+			const old = burningGrounds.shift()!;
+			systemRefs.burningGroup.remove(old.mesh);
+			old.mesh.geometry.dispose();
+			(old.mesh.material as MeshBasicMaterial).dispose();
+		}
+
+		const geo = new CircleGeometry(1.8, 20);
+		const mat = new MeshBasicMaterial({
+			color: 0xff4400,
+			transparent: true,
+			opacity: 0.3,
+			side: DoubleSide,
+		});
+		const mesh = new Mesh(geo, mat);
+		mesh.rotation.x = -Math.PI / 2;
+		mesh.position.set(x, 0.02, z);
+		systemRefs.burningGroup.add(mesh);
+
+		burningGrounds.push({ mesh, lifetime: 8, tickTimer: 1.0 });
+
+		// Fire particles
+		this.spawnBurst(x, 0.2, z, 15, 0xff4400, 0.5);
+		this.spawnBurst(x, 0.3, z, 8, 0xffaa00, 0.3);
+
+		window.dispatchEvent(new CustomEvent('burning-ground-create'));
 	}
 
 	private updateIcePatches(delta: number): void {

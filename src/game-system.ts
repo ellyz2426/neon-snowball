@@ -8,6 +8,9 @@ import {
 	MeshBasicMaterial,
 	SphereGeometry,
 	OctahedronGeometry,
+	CylinderGeometry,
+	ConeGeometry,
+	Group,
 	Vector3,
 	Color,
 	PointLight,
@@ -23,22 +26,29 @@ import {
 	floatingTexts,
 	icicles,
 	icePatches,
+	snowmanAllies,
+	burningGrounds,
 	systemRefs,
 	EnemyType,
 	PowerUpType,
 	PowerUpData,
 	ActivePowerUp,
+	SnowmanAllyData,
+	BurningGroundData,
 	WeatherType,
 	getWaveEnemyCount,
 	isBossWave,
 	resetGameState,
+	forts,
 	NEON_CYAN,
 	NEON_PINK,
 	NEON_GREEN,
 	NEON_PURPLE,
 	ARENA_RADIUS,
+	ENEMY_CONFIGS,
 } from './game-state.js';
 import { EnemySystem } from './enemy-system.js';
+import { SnowballSystem } from './snowball-system.js';
 
 const WAVE_DELAY = 3;
 const POWER_UP_SPAWN_INTERVAL = 15;
@@ -50,6 +60,7 @@ export class GameSystem extends createSystem({}) {
 	private spawnQueue: EnemyType[] = [];
 	private spawnTimer = 0;
 	private spawnInterval = 0.8;
+	private allyThrowDir = new Vector3();
 
 	init(): void {
 		// Load high score
@@ -106,6 +117,12 @@ export class GameSystem extends createSystem({}) {
 		// Update power-up bobbing
 		this.updatePowerUps(delta);
 
+		// Update snowman allies
+		this.updateSnowmanAllies(delta);
+
+		// Update burning ground zones
+		this.updateBurningGrounds(delta);
+
 		// Check wave complete
 		if (
 			gameState.enemiesRemaining <= 0 &&
@@ -138,6 +155,11 @@ export class GameSystem extends createSystem({}) {
 
 		// Weather transitions every 3 waves
 		this.updateWeather();
+
+		// Spawn snowman allies at living forts (max 3 per wave, wave 2+)
+		if (gameState.wave >= 2) {
+			this.spawnSnowmanAllies();
+		}
 
 		// Build spawn queue
 		this.spawnQueue = [];
@@ -380,6 +402,257 @@ export class GameSystem extends createSystem({}) {
 		this.startNextWave();
 	}
 
+	/** Spawn snowman allies at living forts */
+	private spawnSnowmanAllies(): void {
+		if (!systemRefs.allyGroup) return;
+
+		// Clear old allies
+		this.clearAllies();
+
+		const livingForts = forts.filter(f => !f.isDestroyed);
+		const maxAllies = Math.min(3, livingForts.length);
+		const alliesThisWave = Math.min(maxAllies, 1 + Math.floor(gameState.wave / 3));
+
+		for (let i = 0; i < alliesThisWave; i++) {
+			const fort = livingForts[i];
+			const fortIdx = forts.indexOf(fort);
+			const group = new Group();
+
+			// Position near the fort
+			group.position.set(
+				fort.position.x + 1.2,
+				0,
+				fort.position.z,
+			);
+
+			const s = 0.7;
+
+			// Body
+			const bodyGeo = new SphereGeometry(0.35 * s, 10, 7);
+			const bodyMat = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+			const body = new Mesh(bodyGeo, bodyMat);
+			body.position.y = 0.35 * s;
+			group.add(body);
+
+			// Torso
+			const torsoGeo = new SphereGeometry(0.25 * s, 10, 7);
+			const torso = new Mesh(torsoGeo, bodyMat.clone());
+			torso.position.y = 0.8 * s;
+			group.add(torso);
+
+			// Head
+			const headGeo = new SphereGeometry(0.18 * s, 10, 7);
+			const head = new Mesh(headGeo, bodyMat.clone());
+			head.position.y = 1.1 * s;
+			group.add(head);
+
+			// Green scarf (cylinder)
+			const scarfGeo = new CylinderGeometry(0.2 * s, 0.2 * s, 0.06 * s, 8);
+			const scarfMat = new MeshStandardMaterial({
+				color: 0x44ff88,
+				emissive: new Color(0x22aa44),
+				emissiveIntensity: 0.4,
+			});
+			const scarf = new Mesh(scarfGeo, scarfMat);
+			scarf.position.y = 0.65 * s;
+			group.add(scarf);
+
+			// Neon green glow
+			const glow = new PointLight(NEON_GREEN, 0.4, 3);
+			glow.position.y = 0.8 * s;
+			group.add(glow);
+
+			// Carrot nose
+			const noseGeo = new ConeGeometry(0.03 * s, 0.12 * s, 5);
+			const noseMat = new MeshStandardMaterial({ color: 0xff6622 });
+			const nose = new Mesh(noseGeo, noseMat);
+			nose.position.set(0, 1.08 * s, 0.18 * s);
+			nose.rotation.x = -Math.PI / 2;
+			group.add(nose);
+
+			// Eyes
+			const eyeGeo = new SphereGeometry(0.025 * s, 5, 4);
+			const eyeMat = new MeshBasicMaterial({ color: 0x111111 });
+			for (const side of [-1, 1]) {
+				const eye = new Mesh(eyeGeo, eyeMat.clone());
+				eye.position.set(side * 0.06 * s, 1.13 * s, 0.15 * s);
+				group.add(eye);
+			}
+
+			systemRefs.allyGroup.add(group);
+
+			snowmanAllies.push({
+				group,
+				fortIndex: fortIdx,
+				throwsRemaining: 5 + Math.floor(gameState.wave / 2), // More throws in later waves
+				throwCooldown: 2.5,
+				throwTimer: 1.0 + Math.random() * 1.5, // Staggered start
+			});
+		}
+
+		if (alliesThisWave > 0) {
+			window.dispatchEvent(new CustomEvent('ally-spawned'));
+		}
+	}
+
+	/** Update snowman allies: face enemies, auto-throw */
+	private updateSnowmanAllies(delta: number): void {
+		if (snowmanAllies.length === 0 || enemies.length === 0) return;
+
+		for (let i = snowmanAllies.length - 1; i >= 0; i--) {
+			const ally = snowmanAllies[i];
+
+			// Check if the fort this ally belongs to was destroyed
+			if (forts[ally.fortIndex]?.isDestroyed) {
+				systemRefs.allyGroup?.remove(ally.group);
+				ally.group.traverse((child: any) => {
+					if (child instanceof Mesh) {
+						child.geometry.dispose();
+						if (child.material && typeof child.material.dispose === 'function') {
+							child.material.dispose();
+						}
+					}
+				});
+				snowmanAllies.splice(i, 1);
+				continue;
+			}
+
+			if (ally.throwsRemaining <= 0) continue;
+
+			// Find nearest enemy
+			let nearestDist = Infinity;
+			let nearestEnemy = enemies[0];
+			for (const enemy of enemies) {
+				if (enemy.isDying) continue;
+				const dist = ally.group.position.distanceTo(enemy.group.position);
+				if (dist < nearestDist) {
+					nearestDist = dist;
+					nearestEnemy = enemy;
+				}
+			}
+
+			// Face the nearest enemy
+			if (nearestEnemy && !nearestEnemy.isDying) {
+				this.allyThrowDir.copy(nearestEnemy.group.position).sub(ally.group.position);
+				this.allyThrowDir.y = 0;
+				if (this.allyThrowDir.lengthSq() > 0.01) {
+					ally.group.rotation.y = Math.atan2(this.allyThrowDir.x, this.allyThrowDir.z);
+				}
+			}
+
+			// Auto-throw
+			ally.throwTimer -= delta;
+			if (ally.throwTimer <= 0 && nearestEnemy && !nearestEnemy.isDying && nearestDist < 16) {
+				ally.throwTimer = ally.throwCooldown;
+				ally.throwsRemaining--;
+
+				// Create snowball from ally position
+				const origin = ally.group.position.clone();
+				origin.y = 0.8;
+				SnowballSystem.createAllySnowball(origin, nearestEnemy.group.position);
+
+				window.dispatchEvent(new CustomEvent('ally-throw'));
+
+				// Remove ally if out of ammo
+				if (ally.throwsRemaining <= 0) {
+					// Fade out ally (set emissive dark to indicate spent)
+					ally.group.traverse((child: any) => {
+						if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
+							child.material.emissiveIntensity = 0;
+							child.material.opacity = 0.5;
+							child.material.transparent = true;
+						}
+					});
+				}
+			}
+		}
+	}
+
+	/** Update burning ground zones from bomber deaths */
+	private updateBurningGrounds(delta: number): void {
+		if (burningGrounds.length === 0) return;
+
+		const playerPos = new Vector3();
+		this.world.camera.getWorldPosition(playerPos);
+
+		for (let i = burningGrounds.length - 1; i >= 0; i--) {
+			const bg = burningGrounds[i];
+			bg.lifetime -= delta;
+			bg.tickTimer -= delta;
+
+			// Pulse opacity
+			const lifeAlpha = Math.min(1, bg.lifetime / 2);
+			const pulse = 0.6 + Math.sin(Date.now() * 0.008) * 0.2;
+			(bg.mesh.material as MeshBasicMaterial).opacity = 0.3 * lifeAlpha * pulse;
+
+			// Damage player if standing in fire
+			if (bg.tickTimer <= 0 && gameState.state === GameState.PLAYING) {
+				bg.tickTimer = 1.0; // Tick every second
+				const dx = playerPos.x - bg.mesh.position.x;
+				const dz = playerPos.z - bg.mesh.position.z;
+				if (Math.sqrt(dx * dx + dz * dz) < 1.8 && !gameState.shieldActive) {
+					const dmg = 8;
+					gameState.health -= dmg;
+					gameState.combo = 0;
+					window.dispatchEvent(new CustomEvent('player-hit', { detail: { damage: dmg } }));
+					if (gameState.health <= 0) {
+						gameState.health = 0;
+						gameState.state = GameState.GAME_OVER;
+						window.dispatchEvent(new CustomEvent('game-over'));
+					}
+				}
+			}
+
+			// Also speed up enemies on fire
+			for (const enemy of enemies) {
+				if (enemy.isDying) continue;
+				const ex = enemy.group.position.x - bg.mesh.position.x;
+				const ez = enemy.group.position.z - bg.mesh.position.z;
+				if (Math.sqrt(ex * ex + ez * ez) < 1.8) {
+					// Fire damages enemies too
+					if (bg.tickTimer <= 0.05) {
+						enemy.health -= 1;
+						enemy.hitFlashTimer = 0.15;
+						if (enemy.health <= 0 && !enemy.isDying) {
+							enemy.isDying = true;
+							enemy.deathTimer = 0.5;
+							gameState.enemiesKilled++;
+							gameState.totalEnemiesKilled++;
+							gameState.enemiesRemaining--;
+							const config = ENEMY_CONFIGS[enemy.type];
+							const pts = Math.floor(config.points * 0.3);
+							gameState.score += pts;
+							// Track kill by type
+							gameState.killsByType[enemy.type] = (gameState.killsByType[enemy.type] || 0) + 1;
+						}
+					}
+				}
+			}
+
+			if (bg.lifetime <= 0) {
+				systemRefs.burningGroup?.remove(bg.mesh);
+				bg.mesh.geometry.dispose();
+				(bg.mesh.material as MeshBasicMaterial).dispose();
+				burningGrounds.splice(i, 1);
+			}
+		}
+	}
+
+	private clearAllies(): void {
+		for (const ally of snowmanAllies) {
+			systemRefs.allyGroup?.remove(ally.group);
+			ally.group.traverse((child: any) => {
+				if (child instanceof Mesh) {
+					child.geometry.dispose();
+					if (child.material && typeof child.material.dispose === 'function') {
+						child.material.dispose();
+					}
+				}
+			});
+		}
+		snowmanAllies.length = 0;
+	}
+
 	clearAll(): void {
 		// Remove all snowballs
 		for (const sb of snowballs) {
@@ -435,6 +708,17 @@ export class GameSystem extends createSystem({}) {
 			(patch.mesh.material as MeshBasicMaterial).dispose();
 		}
 		icePatches.length = 0;
+
+		// Remove all snowman allies
+		this.clearAllies();
+
+		// Remove all burning grounds
+		for (const bg of burningGrounds) {
+			systemRefs.burningGroup?.remove(bg.mesh);
+			bg.mesh.geometry.dispose();
+			(bg.mesh.material as MeshBasicMaterial).dispose();
+		}
+		burningGrounds.length = 0;
 	}
 
 	saveHighScore(): void {

@@ -144,6 +144,22 @@ export interface IcePatchData {
 	radius: number;
 }
 
+// ── Snowman ally data ────────────────────────────────────────────
+export interface SnowmanAllyData {
+	group: Group;
+	fortIndex: number;
+	throwsRemaining: number;
+	throwCooldown: number;
+	throwTimer: number;
+}
+
+// ── Burning ground data ─────────────────────────────────────────
+export interface BurningGroundData {
+	mesh: Mesh;
+	lifetime: number;
+	tickTimer: number;
+}
+
 // ── Fort data ───────────────────────────────────────────────────
 export interface FortData {
 	group: Group;
@@ -320,6 +336,11 @@ export const gameState = {
 	slowedEnemies: new Map<number, number>() as Map<number, number>,
 	blizzardBlastActive: false,
 	blizzardBlastTimer: 0,
+	// Day/night cycle
+	dayNightPhase: 0 as number, // 0-1 range, 0=night 0.5=dawn/dusk 1=day
+	dayNightDirection: 1 as number, // 1=brightening, -1=darkening
+	// Kill tracking by type
+	killsByType: {} as Record<string, number>,
 };
 
 // ── Shared object pools ─────────────────────────────────────────
@@ -333,6 +354,8 @@ export const floatingTexts: FloatingTextData[] = [];
 export const icicles: IcicleData[] = [];
 export const icePatches: IcePatchData[] = [];
 export const forts: FortData[] = [];
+export const snowmanAllies: SnowmanAllyData[] = [];
+export const burningGrounds: BurningGroundData[] = [];
 
 // ── Fort constants ──────────────────────────────────────────────
 export const FORT_MAX_HEALTH = 5;
@@ -350,6 +373,8 @@ export const systemRefs: {
 	floatingTextGroup: Group | null;
 	icicleGroup: Group | null;
 	icePatchGroup: Group | null;
+	allyGroup: Group | null;
+	burningGroup: Group | null;
 } = {
 	scene: null,
 	arenaGroup: null,
@@ -361,6 +386,8 @@ export const systemRefs: {
 	floatingTextGroup: null,
 	icicleGroup: null,
 	icePatchGroup: null,
+	allyGroup: null,
+	burningGroup: null,
 };
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -392,6 +419,9 @@ export function resetGameState(): void {
 	gameState.slowedEnemies.clear();
 	gameState.blizzardBlastActive = false;
 	gameState.blizzardBlastTimer = 0;
+	gameState.dayNightPhase = 0;
+	gameState.dayNightDirection = 1;
+	gameState.killsByType = {};
 
 	// Reset forts to full health
 	for (const fort of forts) {
