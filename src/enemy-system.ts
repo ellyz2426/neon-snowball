@@ -33,6 +33,7 @@ import {
 	ARENA_RADIUS,
 	HealthBarData,
 	icePatches,
+	snowballs,
 } from './game-state.js';
 import { SnowballSystem } from './snowball-system.js';
 
@@ -105,6 +106,11 @@ export class EnemySystem extends createSystem({}) {
 			// Movement (unless frozen)
 			let speedMult = isFrozen ? 0.15 : diffConfig.enemySpeedMult;
 
+			// Blizzard blast: nearly freeze all enemies
+			if (gameState.blizzardBlastActive) {
+				speedMult *= 0.1;
+			}
+
 			// Apply ice-ball slow debuff
 			const enemyIdx = enemies.indexOf(enemy);
 			if (gameState.slowedEnemies.has(enemyIdx)) {
@@ -145,6 +151,9 @@ export class EnemySystem extends createSystem({}) {
 						window.dispatchEvent(new CustomEvent('player-hit', {
 							detail: { damage: dmg },
 						}));
+						window.dispatchEvent(new CustomEvent('screen-shake', {
+							detail: { intensity: 0.4 },
+						}));
 						if (gameState.health <= 0) {
 							gameState.health = 0;
 							gameState.state = GameState.GAME_OVER;
@@ -158,31 +167,76 @@ export class EnemySystem extends createSystem({}) {
 					enemy.isCharging = false;
 					enemy.chargeTimer = 12;
 				}
-			} else if (dist > 4) {
-				// Move toward player
-				_dir
-					.copy(_playerPos)
-					.sub(enemy.group.position)
-					.normalize();
-				_dir.y = 0;
+			} else if (enemy.isDodging) {
+				// Execute dodge maneuver
+				enemy.dodgeTimer -= delta;
+				enemy.group.position.x += enemy.dodgeDir.x * enemy.speed * speedMult * 2.5 * delta;
+				enemy.group.position.z += enemy.dodgeDir.z * enemy.speed * speedMult * 2.5 * delta;
+				if (enemy.dodgeTimer <= 0) {
+					enemy.isDodging = false;
+				}
+			} else {
+				// ── Dodge incoming player snowballs ──
+				if (enemy.dodgeCooldown <= 0 && enemy.type !== EnemyType.TANK) {
+					const dodgeChance = enemy.type === EnemyType.SPEEDY ? 0.7
+						: enemy.type === EnemyType.BOSS ? 0.4
+						: enemy.type === EnemyType.YETI ? 0.2
+						: 0.35;
+					// Scale with wave for progressive difficulty
+					const waveDodgeMult = Math.min(1.0, 0.5 + gameState.wave * 0.05);
+					for (const sb of snowballs) {
+						if (!sb.isPlayerOwned) continue;
+						const sbDist = sb.mesh.position.distanceTo(enemy.group.position);
+						if (sbDist < 4.0 && sbDist > 0.5) {
+							// Check if snowball is heading roughly toward this enemy
+							const toEnemy = _dir.copy(enemy.group.position).sub(sb.mesh.position).normalize();
+							const sbDir = sb.velocity.clone().normalize();
+							const dot = toEnemy.dot(sbDir);
+							if (dot > 0.6 && Math.random() < dodgeChance * waveDodgeMult) {
+								// Dodge perpendicular to incoming snowball
+								enemy.isDodging = true;
+								enemy.dodgeTimer = 0.3;
+								enemy.dodgeCooldown = 1.5;
+								const perpX = -sbDir.z * enemy.flankSide;
+								const perpZ = sbDir.x * enemy.flankSide;
+								enemy.dodgeDir.set(perpX, 0, perpZ).normalize();
+								break;
+							}
+						}
+					}
+				}
+				if (enemy.dodgeCooldown > 0) {
+					enemy.dodgeCooldown -= delta;
+				}
 
-				// Add some lateral movement for interest
-				const lateralPhase =
-					Math.sin(Date.now() * 0.001 + enemy.group.position.x * 2) * 0.3;
-				_dir.x += lateralPhase;
-				_dir.normalize();
+				if (dist > 4) {
+					// ── Flanking movement ──
+					_dir.copy(_playerPos).sub(enemy.group.position).normalize();
+					_dir.y = 0;
 
-				enemy.group.position.x += _dir.x * enemy.speed * speedMult * delta;
-				enemy.group.position.z += _dir.z * enemy.speed * speedMult * delta;
-			} else if (dist < 3) {
-				// Too close - back away
-				_dir
-					.copy(enemy.group.position)
-					.sub(_playerPos)
-					.normalize();
-				_dir.y = 0;
-				enemy.group.position.x += _dir.x * enemy.speed * speedMult * delta * 0.5;
-				enemy.group.position.z += _dir.z * enemy.speed * speedMult * delta * 0.5;
+					// Flank: add perpendicular component based on flankSide
+					// Stronger flanking for Speedy and when wave > 4
+					const flankStr = enemy.type === EnemyType.SPEEDY ? 0.5
+						: gameState.wave > 4 ? 0.3 : 0.15;
+
+					const perpX = -_dir.z * enemy.flankSide;
+					const perpZ = _dir.x * enemy.flankSide;
+					_dir.x += perpX * flankStr;
+					_dir.z += perpZ * flankStr;
+					_dir.normalize();
+
+					enemy.group.position.x += _dir.x * enemy.speed * speedMult * delta;
+					enemy.group.position.z += _dir.z * enemy.speed * speedMult * delta;
+				} else if (dist < 3) {
+					// Too close - back away
+					_dir
+						.copy(enemy.group.position)
+						.sub(_playerPos)
+						.normalize();
+					_dir.y = 0;
+					enemy.group.position.x += _dir.x * enemy.speed * speedMult * delta * 0.5;
+					enemy.group.position.z += _dir.z * enemy.speed * speedMult * delta * 0.5;
+				}
 			}
 
 			// Face player
@@ -192,10 +246,20 @@ export class EnemySystem extends createSystem({}) {
 				enemy.group.rotation.y = Math.atan2(_dir.x, _dir.z);
 			}
 
-			// Throwing (skip while charging)
-			if (!(enemy.type === EnemyType.BOSS && enemy.isCharging)) {
+			// Throwing (skip while charging or dodging)
+			if (!(enemy.type === EnemyType.BOSS && enemy.isCharging) && !enemy.isDodging) {
 				const throwMult = isFrozen ? 0.3 : diffConfig.enemyThrowRateMult;
-				enemy.throwTimer -= delta * throwMult;
+				// Blizzard blast freezes enemies' throw timers
+				const blizzardMult = gameState.blizzardBlastActive ? 0.1 : 1.0;
+				enemy.throwTimer -= delta * throwMult * blizzardMult;
+
+				// ── Coordinated attack sync ──
+				// When multiple enemies are ready, they attack in tighter windows
+				enemy.attackSync -= delta;
+				if (enemy.attackSync <= 0) {
+					// Reset sync window — enemies on same wave share timing
+					enemy.attackSync = 0.5 + Math.random() * 0.5;
+				}
 
 				if (enemy.throwTimer <= 0 && dist < 15) {
 					enemy.throwTimer = enemy.throwCooldown;
@@ -554,6 +618,12 @@ export class EnemySystem extends createSystem({}) {
 			isCharging: false,
 			chargeTimer: type === EnemyType.BOSS ? 10 : 999,
 			healthBar,
+			dodgeCooldown: 0,
+			isDodging: false,
+			dodgeDir: new Vector3(),
+			dodgeTimer: 0,
+			flankSide: Math.random() < 0.5 ? -1 : 1,
+			attackSync: Math.random() * 2,
 		});
 	}
 }

@@ -50,6 +50,7 @@ export class ArenaSystem extends createSystem({}) {
 	private auroraCurtains: Mesh[] = [];
 	private starField: Mesh[] = [];
 	private windDrifts: { mesh: Mesh; vel: Vector3; life: number; maxLife: number }[] = [];
+	private campfires: { light: PointLight; flames: Mesh[]; baseY: number }[] = [];
 
 	init(): void {
 		const scene = this.world.scene;
@@ -121,6 +122,12 @@ export class ArenaSystem extends createSystem({}) {
 
 		// Snow piles (ammo indicators)
 		this.buildSnowPiles(arenaGroup);
+
+		// Snow-covered rocks
+		this.buildRocks(arenaGroup);
+
+		// Campfires near forts
+		this.buildCampfires(arenaGroup);
 
 		// Fog
 		scene.fog = new FogExp2(0x0a1428, 0.02);
@@ -576,6 +583,9 @@ export class ArenaSystem extends createSystem({}) {
 
 		// Animate wind drifts
 		this.updateWindDrifts(delta, windMult);
+
+		// Animate campfires
+		this.updateCampfires();
 	}
 
 	private buildSkyDome(scene: Object3D): void {
@@ -729,6 +739,159 @@ export class ArenaSystem extends createSystem({}) {
 				drift.life = 2 + Math.random() * 4;
 				drift.maxLife = drift.life;
 				drift.vel.set(0.3 + Math.random() * 0.5, 0, (Math.random() - 0.5) * 0.2);
+			}
+		}
+	}
+
+	private buildRocks(parent: Group): void {
+		const rockPositions = [
+			{ x: -7, z: -2, scale: 0.7 },
+			{ x: 8, z: 3, scale: 0.5 },
+			{ x: -3, z: 8, scale: 0.6 },
+			{ x: 4, z: -9, scale: 0.8 },
+			{ x: -10, z: 4, scale: 0.55 },
+			{ x: 11, z: -5, scale: 0.65 },
+			{ x: 0, z: -8, scale: 0.45 },
+			{ x: -8, z: -6, scale: 0.5 },
+		];
+
+		const rockMat = new MeshStandardMaterial({
+			color: 0x556666,
+			roughness: 0.95,
+			metalness: 0.05,
+		});
+		const snowCapMat = new MeshStandardMaterial({
+			color: 0xffffff,
+			roughness: 0.9,
+			metalness: 0.0,
+		});
+
+		for (const pos of rockPositions) {
+			const rock = new Group();
+			rock.position.set(pos.x, 0, pos.z);
+			rock.rotation.y = Math.random() * Math.PI * 2;
+
+			// Main rock body (squished sphere)
+			const bodyGeo = new SphereGeometry(0.5 * pos.scale, 7, 5);
+			const body = new Mesh(bodyGeo, rockMat.clone());
+			body.scale.set(1.2, 0.6, 1.0);
+			body.position.y = 0.2 * pos.scale;
+			rock.add(body);
+
+			// Secondary bump
+			const bumpGeo = new SphereGeometry(0.3 * pos.scale, 6, 4);
+			const bump = new Mesh(bumpGeo, rockMat.clone());
+			bump.scale.set(0.9, 0.5, 0.8);
+			bump.position.set(0.15 * pos.scale, 0.25 * pos.scale, 0.1 * pos.scale);
+			rock.add(bump);
+
+			// Snow cap on top
+			const capGeo = new SphereGeometry(0.35 * pos.scale, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2);
+			const cap = new Mesh(capGeo, snowCapMat.clone());
+			cap.scale.set(1.3, 0.25, 1.1);
+			cap.position.y = 0.32 * pos.scale;
+			rock.add(cap);
+
+			parent.add(rock);
+		}
+	}
+
+	private buildCampfires(parent: Group): void {
+		// Place campfires near forts
+		const firePositions = [
+			{ x: -5.8, z: -3.2 },
+			{ x: 5.8, z: -4.2 },
+			{ x: -4.8, z: 4.8 },
+			{ x: 6.8, z: 3.8 },
+		];
+
+		for (const pos of firePositions) {
+			const campfire = new Group();
+			campfire.position.set(pos.x, 0, pos.z);
+
+			// Log ring (small cylinders arranged in circle)
+			const logMat = new MeshStandardMaterial({
+				color: 0x3a2211,
+				roughness: 0.9,
+			});
+			for (let i = 0; i < 5; i++) {
+				const angle = (i / 5) * Math.PI * 2;
+				const logGeo = new CylinderGeometry(0.04, 0.05, 0.35, 5);
+				const log = new Mesh(logGeo, logMat.clone());
+				log.position.set(
+					Math.cos(angle) * 0.15,
+					0.05,
+					Math.sin(angle) * 0.15,
+				);
+				log.rotation.z = Math.PI / 2;
+				log.rotation.y = angle;
+				campfire.add(log);
+			}
+
+			// Fire glow light
+			const fireLight = new PointLight(0xff6622, 1.2, 5);
+			fireLight.position.set(0, 0.3, 0);
+			campfire.add(fireLight);
+
+			// Flame meshes (animated cones)
+			const flames: Mesh[] = [];
+			const flameColors = [0xff4400, 0xff6600, 0xffaa00];
+			for (let f = 0; f < 3; f++) {
+				const fGeo = new ConeGeometry(0.06 + f * 0.02, 0.2 + f * 0.05, 5);
+				const fMat = new MeshBasicMaterial({
+					color: flameColors[f],
+					transparent: true,
+					opacity: 0.85 - f * 0.15,
+				});
+				const flame = new Mesh(fGeo, fMat);
+				flame.position.set(
+					(Math.random() - 0.5) * 0.08,
+					0.15 + f * 0.06,
+					(Math.random() - 0.5) * 0.08,
+				);
+				campfire.add(flame);
+				flames.push(flame);
+			}
+
+			// Ember particle ring on ground
+			const emberGeo = new CircleGeometry(0.25, 12);
+			const emberMat = new MeshBasicMaterial({
+				color: 0xff2200,
+				transparent: true,
+				opacity: 0.2,
+			});
+			const ember = new Mesh(emberGeo, emberMat);
+			ember.rotation.x = -Math.PI / 2;
+			ember.position.y = 0.01;
+			campfire.add(ember);
+
+			parent.add(campfire);
+			this.campfires.push({
+				light: fireLight,
+				flames,
+				baseY: 0.3,
+			});
+		}
+	}
+
+	private updateCampfires(): void {
+		for (let i = 0; i < this.campfires.length; i++) {
+			const cf = this.campfires[i];
+			// Flickering light intensity
+			const flicker = 0.8 + Math.sin(this.time * 8 + i * 3.7) * 0.3
+				+ Math.sin(this.time * 13 + i * 1.1) * 0.15;
+			cf.light.intensity = flicker;
+			cf.light.position.y = cf.baseY + Math.sin(this.time * 5 + i) * 0.03;
+
+			// Animate flame meshes
+			for (let f = 0; f < cf.flames.length; f++) {
+				const flame = cf.flames[f];
+				const phase = this.time * 6 + i * 2.5 + f * 1.8;
+				flame.scale.y = 0.8 + Math.sin(phase) * 0.3;
+				flame.scale.x = 0.9 + Math.sin(phase * 1.3) * 0.15;
+				flame.position.x = Math.sin(phase * 0.7) * 0.03;
+				flame.position.z = Math.cos(phase * 0.9) * 0.03;
+				flame.position.y = 0.15 + f * 0.06 + Math.sin(phase) * 0.02;
 			}
 		}
 	}

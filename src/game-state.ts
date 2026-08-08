@@ -44,6 +44,7 @@ export enum PowerUpType {
 	RAPID = 'RAPID',
 	SHIELD = 'SHIELD',
 	FREEZE = 'FREEZE',
+	BLIZZARD_BLAST = 'BLIZZARD_BLAST',
 }
 
 // ── Weather types ───────────────────────────────────────────────
@@ -82,6 +83,13 @@ export interface EnemyData {
 	isCharging: boolean;
 	chargeTimer: number;
 	healthBar: HealthBarData | null;
+	// AI enhancements
+	dodgeCooldown: number;
+	isDodging: boolean;
+	dodgeDir: Vector3;
+	dodgeTimer: number;
+	flankSide: number; // -1 or 1, which side to flank from
+	attackSync: number; // timer for coordinated attack windows
 }
 
 // ── Power-up data ───────────────────────────────────────────────
@@ -297,6 +305,8 @@ export const gameState = {
 	weather: WeatherType.CLEAR as WeatherType,
 	weatherTransition: 0,
 	slowedEnemies: new Map<number, number>() as Map<number, number>,
+	blizzardBlastActive: false,
+	blizzardBlastTimer: 0,
 };
 
 // ── Shared object pools ─────────────────────────────────────────
@@ -362,10 +372,15 @@ export function resetGameState(): void {
 	gameState.weather = WeatherType.CLEAR;
 	gameState.weatherTransition = 0;
 	gameState.slowedEnemies.clear();
+	gameState.blizzardBlastActive = false;
+	gameState.blizzardBlastTimer = 0;
 }
 
 export function getWaveEnemyCount(wave: number): number {
-	return Math.min(3 + Math.floor(wave * 1.5), 20);
+	// Smoother curve: ramp gently early, accelerate later
+	if (wave <= 3) return 3 + wave;           // 4, 5, 6
+	if (wave <= 6) return 5 + Math.floor(wave * 1.0); // 10, 11, 11
+	return Math.min(6 + Math.floor(wave * 1.3), 20);
 }
 
 export function isBossWave(wave: number): boolean {

@@ -2,13 +2,14 @@
  * AudioSystem — procedural sound effects using Web Audio API.
  */
 import { createSystem } from '@iwsdk/core';
-import { gameState, GameState } from './game-state.js';
+import { gameState, GameState, WeatherType } from './game-state.js';
 
 export class AudioSystem extends createSystem({}) {
 	private ctx: AudioContext | null = null;
 	private masterGain: GainNode | null = null;
 	private ambientNode: OscillatorNode | null = null;
 	private ambientGain: GainNode | null = null;
+	private ambientFilter: BiquadFilterNode | null = null;
 	private initialized = false;
 
 	init(): void {
@@ -17,6 +18,10 @@ export class AudioSystem extends createSystem({}) {
 			const detail = (e as CustomEvent).detail;
 			if (detail?.spread) {
 				this.playSpreadShot();
+			} else if (detail?.element === 'ice') {
+				this.playIceThrow();
+			} else if (detail?.element === 'fire') {
+				this.playFireThrow();
 			} else {
 				this.playThrow(detail?.isGiant);
 			}
@@ -44,6 +49,7 @@ export class AudioSystem extends createSystem({}) {
 		window.addEventListener('weather-change', (e: Event) => {
 			this.playWeatherChange((e as CustomEvent).detail?.weather);
 		});
+		window.addEventListener('blizzard-blast', () => this.playBlizzardBlast());
 
 		// Init audio on first interaction
 		const initAudio = () => {
@@ -89,12 +95,12 @@ export class AudioSystem extends createSystem({}) {
 		noise.buffer = buffer;
 		noise.loop = true;
 
-		const filter = this.ctx.createBiquadFilter();
-		filter.type = 'lowpass';
-		filter.frequency.value = 300;
+		this.ambientFilter = this.ctx.createBiquadFilter();
+		this.ambientFilter.type = 'lowpass';
+		this.ambientFilter.frequency.value = 300;
 
-		noise.connect(filter);
-		filter.connect(this.ambientGain);
+		noise.connect(this.ambientFilter);
+		this.ambientFilter.connect(this.ambientGain);
 		noise.start();
 	}
 
@@ -141,6 +147,20 @@ export class AudioSystem extends createSystem({}) {
 		// Whoosh sound
 		this.playNoise(0.25, isGiant ? 600 : 1200, 0.12);
 		this.playNote(isGiant ? 200 : 400, 0.15, 'sine', 0.08);
+	}
+
+	private playIceThrow(): void {
+		// Crystalline whoosh with icy sparkle
+		this.playNoise(0.25, 2000, 0.1);
+		this.playNote(800, 0.15, 'sine', 0.1);
+		this.playNote(1200, 0.1, 'sine', 0.06);
+	}
+
+	private playFireThrow(): void {
+		// Fiery crackle whoosh
+		this.playNoise(0.3, 500, 0.14);
+		this.playNote(250, 0.2, 'sawtooth', 0.08);
+		this.playNote(180, 0.15, 'sine', 0.06);
 	}
 
 	private playSpreadShot(): void {
@@ -257,10 +277,54 @@ export class AudioSystem extends createSystem({}) {
 		setTimeout(() => this.playNote(300, 0.4, 'sine', 0.05), 200);
 	}
 
+	private playBlizzardBlast(): void {
+		if (!this.ctx || !this.masterGain) return;
+		// Epic whooshing blizzard — layered noise burst
+		this.playNoise(1.0, 300, 0.25);
+		this.playNoise(0.8, 600, 0.15);
+		this.playNote(150, 0.6, 'sawtooth', 0.12);
+		setTimeout(() => {
+			this.playNoise(0.5, 400, 0.12);
+			this.playNote(200, 0.4, 'sine', 0.08);
+		}, 200);
+		setTimeout(() => {
+			this.playNote(250, 0.3, 'sine', 0.06);
+			this.playNoise(0.3, 500, 0.08);
+		}, 500);
+	}
+
 	update(): void {
 		// Audio context resume if needed
 		if (this.ctx && this.ctx.state === 'suspended') {
 			this.ctx.resume();
+		}
+
+		// Weather-responsive ambient wind
+		if (this.ambientGain && this.ambientFilter && this.ctx) {
+			let targetGain: number;
+			let targetFreq: number;
+			switch (gameState.weather) {
+				case WeatherType.BLIZZARD:
+					targetGain = 0.12;
+					targetFreq = 500;
+					break;
+				case WeatherType.HEAVY_SNOW:
+					targetGain = 0.07;
+					targetFreq = 400;
+					break;
+				case WeatherType.LIGHT_SNOW:
+					targetGain = 0.04;
+					targetFreq = 350;
+					break;
+				default:
+					targetGain = 0.03;
+					targetFreq = 300;
+					break;
+			}
+			// Smooth transition
+			const t = this.ctx.currentTime;
+			this.ambientGain.gain.linearRampToValueAtTime(targetGain, t + 0.5);
+			this.ambientFilter.frequency.linearRampToValueAtTime(targetFreq, t + 0.5);
 		}
 	}
 }

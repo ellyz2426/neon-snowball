@@ -335,6 +335,7 @@ export class UISystem extends createSystem({}) {
 					[PowerUpType.RAPID]: '⚡ RAPID',
 					[PowerUpType.SHIELD]: '🛡️ SHIELD',
 					[PowerUpType.FREEZE]: '❄️ FREEZE',
+					[PowerUpType.BLIZZARD_BLAST]: '🌪️ BLIZZARD',
 				};
 				powerupEl.setProperties({
 					text: `${names[ap.type]} ${ap.remaining.toFixed(1)}s`,

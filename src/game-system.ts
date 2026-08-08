@@ -167,10 +167,33 @@ export class GameSystem extends createSystem({}) {
 		const wave = gameState.wave;
 		const roll = Math.random();
 
-		if (wave >= 6 && roll < 0.1) return EnemyType.YETI;
-		if (wave >= 8 && roll < 0.2) return EnemyType.BOMBER;
-		if (wave >= 5 && roll < 0.35) return EnemyType.TANK;
-		if (wave >= 3 && roll < 0.5) return EnemyType.SPEEDY;
+		// Smoother progression: introduce types gradually
+		// Wave 1-2: mostly basics, occasional speedy
+		// Wave 3-4: speedy common, tank introduced
+		// Wave 5-7: tanks regular, bombers introduced
+		// Wave 6+: yetis introduced
+		// Wave 8+: everything in mix
+
+		if (wave <= 2) {
+			return roll < 0.15 ? EnemyType.SPEEDY : EnemyType.BASIC;
+		}
+		if (wave <= 4) {
+			if (roll < 0.05 * wave) return EnemyType.TANK;
+			if (roll < 0.25 + wave * 0.05) return EnemyType.SPEEDY;
+			return EnemyType.BASIC;
+		}
+		if (wave <= 6) {
+			if (roll < 0.08) return EnemyType.YETI;
+			if (roll < 0.18) return EnemyType.BOMBER;
+			if (roll < 0.35) return EnemyType.TANK;
+			if (roll < 0.55) return EnemyType.SPEEDY;
+			return EnemyType.BASIC;
+		}
+		// Wave 7+
+		if (roll < 0.12) return EnemyType.YETI;
+		if (roll < 0.25) return EnemyType.BOMBER;
+		if (roll < 0.4) return EnemyType.TANK;
+		if (roll < 0.6) return EnemyType.SPEEDY;
 		return EnemyType.BASIC;
 	}
 
@@ -198,6 +221,10 @@ export class GameSystem extends createSystem({}) {
 		if (!systemRefs.powerUpGroup) return;
 
 		const types = [PowerUpType.GIANT, PowerUpType.RAPID, PowerUpType.SHIELD, PowerUpType.FREEZE];
+		// Blizzard Blast: available from wave 4+, rarer
+		if (gameState.wave >= 4 && Math.random() < 0.25) {
+			types.push(PowerUpType.BLIZZARD_BLAST);
+		}
 		const type = types[Math.floor(Math.random() * types.length)];
 
 		const colors: Record<PowerUpType, number> = {
@@ -205,6 +232,7 @@ export class GameSystem extends createSystem({}) {
 			[PowerUpType.RAPID]: NEON_CYAN,
 			[PowerUpType.SHIELD]: NEON_GREEN,
 			[PowerUpType.FREEZE]: NEON_PURPLE,
+			[PowerUpType.BLIZZARD_BLAST]: 0xaaddff,
 		};
 
 		const geo = new OctahedronGeometry(0.2, 0);
@@ -276,7 +304,10 @@ export class GameSystem extends createSystem({}) {
 	}
 
 	private activatePowerUp(type: PowerUpType): void {
-		const duration = type === PowerUpType.SHIELD ? 8 : type === PowerUpType.FREEZE ? 6 : 10;
+		const duration = type === PowerUpType.SHIELD ? 8
+			: type === PowerUpType.FREEZE ? 6
+			: type === PowerUpType.BLIZZARD_BLAST ? 4
+			: 10;
 
 		// Remove existing of same type
 		for (let i = activePowerUps.length - 1; i >= 0; i--) {
@@ -301,6 +332,11 @@ export class GameSystem extends createSystem({}) {
 			case PowerUpType.FREEZE:
 				gameState.freezeActive = true;
 				break;
+			case PowerUpType.BLIZZARD_BLAST:
+				gameState.blizzardBlastActive = true;
+				gameState.blizzardBlastTimer = duration;
+				window.dispatchEvent(new CustomEvent('blizzard-blast'));
+				break;
 		}
 
 		window.dispatchEvent(new CustomEvent('powerup-collected', { detail: { type } }));
@@ -319,6 +355,10 @@ export class GameSystem extends createSystem({}) {
 				break;
 			case PowerUpType.FREEZE:
 				gameState.freezeActive = false;
+				break;
+			case PowerUpType.BLIZZARD_BLAST:
+				gameState.blizzardBlastActive = false;
+				gameState.blizzardBlastTimer = 0;
 				break;
 		}
 	}

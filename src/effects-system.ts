@@ -116,9 +116,11 @@ export class EffectsSystem extends createSystem({}) {
 			this.createDamageZone(d.x, d.z);
 		});
 
-		// Screen shake (boss ground pound)
-		window.addEventListener('screen-shake', () => {
-			this.shakeIntensity = 0.35;
+		// Screen shake (boss ground pound, boss charge hit, fire AoE)
+		window.addEventListener('screen-shake', (e: Event) => {
+			const detail = (e as CustomEvent).detail;
+			const intensity = detail?.intensity ?? 0.35;
+			this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
 			if (systemRefs.arenaGroup) {
 				this.shakeOriginalPos.copy(systemRefs.arenaGroup.position);
 			}
@@ -136,11 +138,32 @@ export class EffectsSystem extends createSystem({}) {
 			this.spawnBurst(d.x, d.y, d.z, 12, 0x4488ff, 0.5);
 		});
 
-		// Fire ball AoE — orange/red burst
+		// Fire ball AoE — orange/red burst + screen shake
 		window.addEventListener('fire-aoe', (e: Event) => {
 			const d = (e as CustomEvent).detail;
 			this.spawnBurst(d.x, d.y, d.z, 25, 0xff4400, 0.7);
 			this.spawnBurst(d.x, d.y + 0.3, d.z, 10, 0xffaa00, 0.4);
+			// Moderate screen shake on fire AoE
+			this.shakeIntensity = Math.max(this.shakeIntensity, 0.18);
+			if (systemRefs.arenaGroup) {
+				this.shakeOriginalPos.copy(systemRefs.arenaGroup.position);
+			}
+		});
+
+		// Blizzard Blast power-up — massive white particle burst + screen shake
+		window.addEventListener('blizzard-blast', () => {
+			// Huge whiteout burst from player position
+			const cam = this.world.camera;
+			const pos = new Vector3();
+			cam.getWorldPosition(pos);
+			this.spawnBurst(pos.x, pos.y, pos.z, 60, 0xaaddff, 1.5);
+			this.spawnBurst(pos.x, pos.y + 0.5, pos.z, 40, 0xffffff, 1.2);
+			this.spawnBurst(pos.x, pos.y - 0.3, pos.z, 30, 0x88ccff, 0.8);
+			// Strong screen shake
+			this.shakeIntensity = 0.45;
+			if (systemRefs.arenaGroup) {
+				this.shakeOriginalPos.copy(systemRefs.arenaGroup.position);
+			}
 		});
 
 		// Yeti boulder creates ice patch
