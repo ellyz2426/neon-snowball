@@ -13,6 +13,7 @@ import {
 	activePowerUps,
 	PowerUpType,
 	WeatherType,
+	forts,
 } from './game-state.js';
 import { GameSystem } from './game-system.js';
 
@@ -375,6 +376,22 @@ export class UISystem extends createSystem({}) {
 			};
 			weatherEl.setProperties({
 				text: weatherLabels[gameState.weather] || '☀️ CLEAR',
+			});
+		}
+
+		// Fort status indicator
+		const fortEl = this.hudPanel.getElementById('fort-status');
+		if (fortEl) {
+			const fortBars = forts.map((f) => {
+				if (f.isDestroyed) return '✕';
+				const pct = f.health / f.maxHealth;
+				if (pct > 0.6) return '█';
+				if (pct > 0.2) return '▓';
+				return '░';
+			}).join('');
+			const aliveCount = forts.filter(f => !f.isDestroyed).length;
+			fortEl.setProperties({
+				text: `🏰 FORTS: ${fortBars} (${aliveCount}/${forts.length})`,
 			});
 		}
 	}

@@ -39,6 +39,10 @@ import {
 	ICE_BLUE,
 	WeatherType,
 	isBossWave,
+	forts,
+	FortData,
+	FORT_MAX_HEALTH,
+	FORT_DAMAGE_RADIUS,
 } from './game-state.js';
 
 export class ArenaSystem extends createSystem({}) {
@@ -220,10 +224,15 @@ export class ArenaSystem extends createSystem({}) {
 			{ x: 6, z: 3, rot: 0.5 },
 		];
 
+		forts.length = 0;
+
 		for (const pos of fortPositions) {
 			const fort = new Group();
 			fort.position.set(pos.x, 0, pos.z);
 			fort.rotation.y = pos.rot;
+
+			const walls: Mesh[] = [];
+			const originalScales: Vector3[] = [];
 
 			// Main snow wall
 			const wallGeo = new BoxGeometry(2.5, 1.0, 0.5);
@@ -235,6 +244,8 @@ export class ArenaSystem extends createSystem({}) {
 			const wall = new Mesh(wallGeo, wallMat);
 			wall.position.y = 0.5;
 			fort.add(wall);
+			walls.push(wall);
+			originalScales.push(new Vector3(1, 1, 1));
 
 			// Side walls
 			for (const side of [-1, 1]) {
@@ -242,6 +253,8 @@ export class ArenaSystem extends createSystem({}) {
 				const sideWall = new Mesh(sideGeo, wallMat.clone());
 				sideWall.position.set(side * 1.2, 0.4, -0.5);
 				fort.add(sideWall);
+				walls.push(sideWall);
+				originalScales.push(new Vector3(1, 1, 1));
 			}
 
 			// Neon trim on top
@@ -254,6 +267,8 @@ export class ArenaSystem extends createSystem({}) {
 			const trim = new Mesh(trimGeo, trimMat);
 			trim.position.set(0, 1.02, 0);
 			fort.add(trim);
+			walls.push(trim);
+			originalScales.push(new Vector3(1, 1, 1));
 
 			// Neon glow
 			const glow = new PointLight(NEON_CYAN, 0.3, 4);
@@ -261,7 +276,31 @@ export class ArenaSystem extends createSystem({}) {
 			fort.add(glow);
 
 			parent.add(fort);
+
+			forts.push({
+				group: fort,
+				walls,
+				glowLight: glow,
+				health: FORT_MAX_HEALTH,
+				maxHealth: FORT_MAX_HEALTH,
+				position: new Vector3(pos.x, 0, pos.z),
+				originalScales,
+				isDestroyed: false,
+				rebuildProgress: 0,
+			});
 		}
+
+		// Listen for fort damage from enemy snowballs
+		window.addEventListener('snowball-impact', (e: Event) => {
+			const d = (e as CustomEvent).detail;
+			if (d.isPlayerOwned) return; // Only enemy snowballs damage forts
+			this.checkFortDamage(d.x, d.z);
+		});
+
+		// Rebuild forts between waves
+		window.addEventListener('wave-complete', () => {
+			this.startFortRebuild();
+		});
 	}
 
 	private buildTrees(parent: Group): void {
@@ -896,7 +935,93 @@ export class ArenaSystem extends createSystem({}) {
 		}
 	}
 
+	private checkFortDamage(x: number, z: number): void {
+		for (const fort of forts) {
+			if (fort.isDestroyed) continue;
+			const dx = x - fort.position.x;
+			const dz = z - fort.position.z;
+			const dist = Math.sqrt(dx * dx + dz * dz);
+			if (dist < FORT_DAMAGE_RADIUS) {
+				fort.health--;
+				// Spawn debris particles
+				window.dispatchEvent(new CustomEvent('fort-hit', {
+					detail: { x: fort.position.x, z: fort.position.z },
+				}));
+				if (fort.health <= 0) {
+					fort.isDestroyed = true;
+					fort.health = 0;
+					window.dispatchEvent(new CustomEvent('fort-destroyed', {
+						detail: { x: fort.position.x, z: fort.position.z },
+					}));
+				}
+				break; // Only damage one fort per impact
+			}
+		}
+	}
+
+	private startFortRebuild(): void {
+		for (const fort of forts) {
+			if (fort.health < fort.maxHealth) {
+				// Restore 2 HP per wave break (partial rebuild)
+				const healAmount = 2;
+				fort.health = Math.min(fort.maxHealth, fort.health + healAmount);
+				if (fort.health > 0) {
+					fort.isDestroyed = false;
+				}
+				fort.rebuildProgress = 0; // Start rebuild animation
+			}
+		}
+	}
+
+	private updateFortVisuals(delta: number): void {
+		for (const fort of forts) {
+			const healthPct = fort.health / fort.maxHealth;
+			const targetScale = fort.isDestroyed ? 0.05 : 0.3 + healthPct * 0.7;
+
+			for (let w = 0; w < fort.walls.length; w++) {
+				const wall = fort.walls[w];
+				const origScale = fort.originalScales[w];
+
+				// Smoothly animate toward target scale
+				const currentY = wall.scale.y;
+				const target = targetScale * origScale.y;
+				wall.scale.y += (target - currentY) * delta * 3;
+
+				// Darken material as health drops
+				const mat = wall.material;
+				if (mat instanceof MeshStandardMaterial) {
+					const darken = 0.4 + healthPct * 0.6;
+					mat.color.setRGB(
+						(SNOW_WHITE >> 16 & 0xFF) / 255 * darken,
+						(SNOW_WHITE >> 8 & 0xFF) / 255 * darken,
+						(SNOW_WHITE & 0xFF) / 255 * darken,
+					);
+					// Add red tint when heavily damaged
+					if (healthPct < 0.4) {
+						mat.emissive.setHex(0x441111);
+						mat.emissiveIntensity = (1 - healthPct) * 0.3;
+					} else {
+						mat.emissive.setHex(0x112233);
+						mat.emissiveIntensity = 0.1;
+					}
+				} else if (mat instanceof MeshBasicMaterial) {
+					// Neon trim fades with damage
+					mat.opacity = 0.2 + healthPct * 0.7;
+				}
+			}
+
+			// Dim/brighten glow light based on fort health
+			if (fort.glowLight && fort.glowLight instanceof PointLight) {
+				fort.glowLight.intensity = fort.isDestroyed ? 0 : 0.3 * (0.3 + healthPct * 0.7);
+			}
+		}
+	}
+
 	private updateWeatherLighting(weather: WeatherType, isStorm: boolean, delta: number): void {
+
+		// Update fort visual state (damage/rebuild animations)
+		this.updateFortVisuals(delta);
+
 		if (!this.ambientLight || !this.moonLight) return;
 
 		let targetAmbient: number, targetMoon: number;

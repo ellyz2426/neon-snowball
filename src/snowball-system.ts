@@ -371,7 +371,7 @@ export class SnowballSystem extends createSystem({}) {
 			if (sb.mesh.position.y < 0) {
 				shouldRemove = true;
 				window.dispatchEvent(new CustomEvent('snowball-impact', {
-					detail: { x: sb.mesh.position.x, y: 0, z: sb.mesh.position.z, isGiant: sb.isGiant },
+					detail: { x: sb.mesh.position.x, y: 0, z: sb.mesh.position.z, isGiant: sb.isGiant, isPlayerOwned: sb.isPlayerOwned },
 				}));
 				// Bomber AoE zone with telegraph
 				if (!sb.isPlayerOwned && sb.isGiant) {

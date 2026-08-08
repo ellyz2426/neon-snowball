@@ -133,6 +133,10 @@
     <div class="icon">🧊</div>
     <div class="item-text">Ice patches speed up enemies</div>
   </div>
+  <div class="item-row">
+    <div class="icon">🏰</div>
+    <div class="item-text">Forts take damage — they rebuild between waves</div>
+  </div>
   <div class="divider"></div>
   <div class="section-title">POWER-UPS</div>
   <div class="power-label">Walk into floating gems to collect</div>

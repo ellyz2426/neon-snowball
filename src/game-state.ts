@@ -144,6 +144,19 @@ export interface IcePatchData {
 	radius: number;
 }
 
+// ── Fort data ───────────────────────────────────────────────────
+export interface FortData {
+	group: Group;
+	walls: Mesh[];
+	glowLight: object | null;
+	health: number;
+	maxHealth: number;
+	position: Vector3;
+	originalScales: Vector3[];
+	isDestroyed: boolean;
+	rebuildProgress: number;
+}
+
 // ── Health bar data ─────────────────────────────────────────────
 export interface HealthBarData {
 	background: Mesh;
@@ -319,6 +332,11 @@ export const damageZones: DamageZoneData[] = [];
 export const floatingTexts: FloatingTextData[] = [];
 export const icicles: IcicleData[] = [];
 export const icePatches: IcePatchData[] = [];
+export const forts: FortData[] = [];
+
+// ── Fort constants ──────────────────────────────────────────────
+export const FORT_MAX_HEALTH = 5;
+export const FORT_DAMAGE_RADIUS = 2.5; // how close a snowball must land to damage a fort
 
 // ── System references ───────────────────────────────────────────
 export const systemRefs: {
@@ -374,6 +392,13 @@ export function resetGameState(): void {
 	gameState.slowedEnemies.clear();
 	gameState.blizzardBlastActive = false;
 	gameState.blizzardBlastTimer = 0;
+
+	// Reset forts to full health
+	for (const fort of forts) {
+		fort.health = fort.maxHealth;
+		fort.isDestroyed = false;
+		fort.rebuildProgress = 0;
+	}
 }
 
 export function getWaveEnemyCount(wave: number): number {

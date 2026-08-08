@@ -175,6 +175,21 @@ export class EffectsSystem extends createSystem({}) {
 			}, 800);
 		});
 
+		// Fort hit — snow debris burst
+		window.addEventListener('fort-hit', (e: Event) => {
+			const d = (e as CustomEvent).detail;
+			this.spawnBurst(d.x, 0.5, d.z, 12, SNOW_WHITE, 0.5);
+			this.spawnBurst(d.x, 0.3, d.z, 6, 0xccddee, 0.3);
+		});
+
+		// Fort destroyed — big debris explosion
+		window.addEventListener('fort-destroyed', (e: Event) => {
+			const d = (e as CustomEvent).detail;
+			this.spawnBurst(d.x, 0.5, d.z, 30, SNOW_WHITE, 0.8);
+			this.spawnBurst(d.x, 0.8, d.z, 15, 0xccddee, 0.6);
+			this.spawnBurst(d.x, 0.3, d.z, 10, NEON_CYAN, 0.4);
+		});
+
 		// Boss charge warning telegraph
 		window.addEventListener('boss-charge-telegraph', (e: Event) => {
 			const d = (e as CustomEvent).detail;

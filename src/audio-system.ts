@@ -50,6 +50,8 @@ export class AudioSystem extends createSystem({}) {
 			this.playWeatherChange((e as CustomEvent).detail?.weather);
 		});
 		window.addEventListener('blizzard-blast', () => this.playBlizzardBlast());
+		window.addEventListener('fort-hit', () => this.playFortHit());
+		window.addEventListener('fort-destroyed', () => this.playFortDestroyed());
 
 		// Init audio on first interaction
 		const initAudio = () => {
@@ -291,6 +293,21 @@ export class AudioSystem extends createSystem({}) {
 			this.playNote(250, 0.3, 'sine', 0.06);
 			this.playNoise(0.3, 500, 0.08);
 		}, 500);
+	}
+
+	private playFortHit(): void {
+		// Snow crumbling sound
+		this.playNoise(0.25, 800, 0.1);
+		this.playNote(180, 0.2, 'sine', 0.08);
+		this.playNote(120, 0.15, 'triangle', 0.06);
+	}
+
+	private playFortDestroyed(): void {
+		// Big crumble/collapse
+		this.playNoise(0.5, 400, 0.2);
+		this.playNote(100, 0.4, 'sawtooth', 0.12);
+		setTimeout(() => this.playNoise(0.3, 600, 0.1), 150);
+		setTimeout(() => this.playNote(80, 0.3, 'sine', 0.08), 200);
 	}
 
 	update(): void {
